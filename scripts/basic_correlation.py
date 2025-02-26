@@ -5,9 +5,11 @@ import itertools
 from collections import defaultdict
 import matplotlib.pyplot as plt
 import seaborn as sns
+import ast 
+from scipy import stats
 
 def calculate_basic_correlations(csv_file_path, class_labels):
-    """Calculates simple correlations between behaviors."""
+    """Calculates Spearman rank correlations between behaviors."""
     try:
         df = pd.read_csv(csv_file_path)
     except (FileNotFoundError, pd.errors.EmptyDataError):
@@ -29,9 +31,11 @@ def calculate_basic_correlations(csv_file_path, class_labels):
     for (class1, class2) in itertools.combinations(class_labels.values(), 2):
         indices1 = set(bout_starts[class1])
         indices2 = set(bout_starts[class2])
-        serie1 = pd.Series([i in indices1 for i in range(len(df))])
-        serie2 = pd.Series([i in indices2 for i in range(len(df))])
-        corr_coeff = serie1.corr(serie2)
+        # Convert boolean series to int for correlation calculation
+        serie1 = pd.Series([i in indices1 for i in range(len(df))]).astype(int)
+        serie2 = pd.Series([i in indices2 for i in range(len(df))]).astype(int)
+        # Use Spearman's rank correlation
+        corr_coeff, p_value =  stats.spearmanr(serie1, serie2)  # Get both coefficient and p-value
         correlations[(class1, class2)] = corr_coeff
 
     return correlations
@@ -58,34 +62,25 @@ def plot_correlations(correlations, output_folder, video_name):
 
     # Convert the correlations dictionary to a DataFrame for plotting
     df_corr = pd.DataFrame.from_dict(correlations, orient='index', columns=['Correlation'])
-    df_corr.index.names = ['Behavior 1', 'Behavior 2']
-    df_corr = df_corr.reset_index()
+    df_corr.index.name = 'Behavior Pair'  # Single name for the index
+    df_corr = df_corr.reset_index() #Reset index
 
     # Create a pivot table for the heatmap
-    df_pivot = df_corr.pivot(index='Behavior 1', columns='Behavior 2', values='Correlation')
-
-    # Get the list of behaviors to ensure the matrix is square and includes all
-    behaviors = sorted(list(set([b for pair in correlations.keys() for b in pair])))
-    
-    # Reindex the pivot table to include all behaviors, filling NaNs with 0
-    df_pivot = df_pivot.reindex(index=behaviors, columns=behaviors, fill_value=0)
-    
-    # Ensure symmetry:  The correlation of (A, B) should be the same as (B, A)
-    for i in range(len(behaviors)):
-        for j in range(i, len(behaviors)):
-            b1 = behaviors[i]
-            b2 = behaviors[j]
-            # If (b1, b2) is in correlations, use that value; otherwise, it's 0.
-            if (b1,b2) in correlations:
-                val = correlations[(b1, b2)]
+    # Use list comprehension for a cleaner way to get behaviors
+    behaviors = sorted(list(set(b for pair in correlations for b in pair)))
+    # Build the pivot table directly, handling missing pairs.
+    data = {}
+    for b1 in behaviors:
+        data[b1] = {}
+        for b2 in behaviors:
+            if (b1, b2) in correlations:
+                data[b1][b2] = correlations[(b1, b2)]
             elif (b2, b1) in correlations:
-                val = correlations[(b2, b1)]
+                data[b1][b2] = correlations[(b2, b1)]
             else:
-                val = 0  # Default if neither is present
+                data[b1][b2] = 0  # Or np.nan if you prefer to represent missing data as NaN
 
-            df_pivot.loc[b1, b2] = val
-            df_pivot.loc[b2, b1] = val  # Ensure symmetry
-
+    df_pivot = pd.DataFrame(data).loc[behaviors, behaviors]
 
     # Plot the heatmap
     plt.figure(figsize=(8, 6))
@@ -101,12 +96,13 @@ def plot_correlations(correlations, output_folder, video_name):
     print(f"Correlation heatmap saved to: {output_path}")
 
 
+
 def main():
     """Main function to parse arguments and run analysis."""
     parser = argparse.ArgumentParser(description="Calculate basic correlations between behaviors.")
     parser.add_argument("--output_folder", required=True, help="Path to the output folder.")
     parser.add_argument("--class_labels", required=True, help="Class labels dictionary (as a string).")
-    parser.add_argument("--frame_rate", required = True, type = int, help = "Frame Rate of the video")
+    parser.add_argument("--frame_rate", required = True, type = int, help = "Frame Rate of the video") #Not used, but we will keep it
     parser.add_argument("--video_name", required=True, help="Video name.")
     args = parser.parse_args()
 
@@ -114,7 +110,7 @@ def main():
     os.makedirs(csv_output_folder, exist_ok=True)
 
     try:
-        class_labels_dict = eval(args.class_labels)
+        class_labels_dict = ast.literal_eval(args.class_labels)  # Use ast.literal_eval
         if not isinstance(class_labels_dict, dict):
             raise ValueError("Class labels must be a dictionary.")
     except (ValueError, SyntaxError) as e:
@@ -131,4 +127,5 @@ def main():
         print(f"Error: {csv_file_path} not found.  Run general_analysis.py first.")
 
 if __name__ == "__main__":
+    from scipy import stats 
     main()

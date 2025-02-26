@@ -5,8 +5,9 @@ import pandas as pd
 import argparse
 import matplotlib.pyplot as plt
 import seaborn as sns
-from scipy.stats import sem
+from scipy.stats import sem  #Keep this, just in case for future
 import numpy as np
+import ast
 
 def parse_yolo_output(txt_file_path, class_labels):
     """Parses a YOLO output file, handling errors."""
@@ -16,17 +17,25 @@ def parse_yolo_output(txt_file_path, class_labels):
             for line in file:
                 parts = line.strip().split()
                 if len(parts) == 5:
-                    class_id = int(parts[0])
-                    if isinstance(class_labels, list):
-                        class_label = class_labels[class_id] if class_id < len(class_labels) else "Unknown"
-                    elif isinstance(class_labels, dict):
-                        class_label = class_labels.get(class_id, "Unknown")
-                    else:
-                        raise ValueError("class_labels must be a list or a dictionary")
-                    detections.append({"class_id": class_id, "class_label": class_label})
+                    try:  # Add try-except here
+                        class_id = int(parts[0])
+                        if isinstance(class_labels, list):
+                            class_label = class_labels[class_id] if class_id < len(class_labels) else "Unknown"
+                        elif isinstance(class_labels, dict):
+                            class_label = class_labels.get(class_id, "Unknown")
+                        else:
+                            raise ValueError("class_labels must be a list or a dictionary")
+                        detections.append({"class_id": class_id, "class_label": class_label})
+                    except ValueError:
+                         print(f"Invalid class ID found in {txt_file_path}: {parts[0]}")
+                         continue #Skip this line
+                else:
+                    print(f"Skipping invalid line in {txt_file_path}: {line.strip()}") #Give info.
+
+
     except (FileNotFoundError, ValueError, IndexError) as e:
         print(f"Error processing {txt_file_path}: {e}")
-        return []
+        return []  # Return empty list on error
     return detections
 
 def analyze_detections(output_folder, class_labels, csv_output_folder, video_name, min_bout_duration=3, max_gap_duration=5, frame_rate=30):
@@ -52,7 +61,7 @@ def analyze_detections(output_folder, class_labels, csv_output_folder, video_nam
         txt_file_path = os.path.join(output_folder, filename)
         detections = parse_yolo_output(txt_file_path, class_labels)
         if not detections:
-            continue
+            continue  # Skip to the next file
 
         for detection in detections:
             class_label = detection["class_label"]
@@ -135,7 +144,7 @@ def calculate_average_time_between_bouts(csv_file_path, class_label, frame_rate=
     end_frames = df[df['bout_end']].index.tolist()
 
     if len(start_frames) < 2:
-        return 0, 0
+         return 0, 0 #Return 0
 
     time_diffs = [start_frames[i] - end_frames[i-1] for i in range(1, len(start_frames))]
     avg_time_frames = sum(time_diffs) / len(time_diffs) if time_diffs else 0
@@ -190,6 +199,18 @@ def save_analysis_to_excel(csv_file_path, output_folder, class_labels, frame_rat
                         "Bout Durations (frames)": str(bout_durations)
                     }
                     all_data.append(data)
+                #Added: if there is no average_time between bouts.
+                else:
+                    data = {
+                        "Class Label": class_label,
+                        "Average Time Between Bouts (frames)": 0,
+                        "Average Time Between Bouts (seconds)": 0,
+                        "Number of Bouts": 0,
+                        "Average Bout Duration (frames)": 0,
+                        "Average Bout Duration (seconds)": 0,
+                        "Bout Durations (frames)": str([0])
+                    }
+                    all_data.append(data)
 
             df_general = pd.DataFrame(all_data)
             df_general.to_excel(writer, sheet_name='Bout Information', index=False)
@@ -199,66 +220,52 @@ def save_analysis_to_excel(csv_file_path, output_folder, class_labels, frame_rat
         print(f"Error saving to Excel: {e}")
 
 def plot_general_analysis(csv_file_path, class_labels, frame_rate, output_folder, video_name):
-    """Generates box plots for bout durations and time between bouts."""
+    """Generates box plots for bout durations, time between bouts and average bout duration."""
 
     data_for_plotting = {}
     for class_label in class_labels.values():
         num_bouts, avg_bout_duration_frames, avg_bout_duration_seconds, bout_durations = calculate_bout_info(csv_file_path, class_label, frame_rate)
-        avg_time_frames, avg_time_seconds = calculate_average_time_between_bouts(csv_file_path, class_label, frame_rate)
+        _, avg_time_seconds = calculate_average_time_between_bouts(csv_file_path, class_label, frame_rate)
 
-        if num_bouts is not None:  # Ensure data exists
-            data_for_plotting[class_label] = {
-                'bout_durations': bout_durations,
-                'avg_time_between_bouts': avg_time_seconds if avg_time_seconds is not None else 0, # Use 0 as a default
-                'avg_bout_duration': avg_bout_duration_seconds if avg_bout_duration_seconds is not None else 0,  #Use 0 as default
-            }
-        else: #If there is no bout, assign all values to 0.
-            data_for_plotting[class_label] = {
-                'bout_durations': [0],
-                'avg_time_between_bouts': 0,
-                'avg_bout_duration': 0,
-            }
+        # Prepare data for plotting, handling None values and ensuring lists
+        data_for_plotting[class_label] = {
+            'bout_durations': bout_durations if bout_durations else [0],  # Ensure a list
+            'avg_time_between_bouts': [avg_time_seconds] if avg_time_seconds is not None else [0],  # Ensure a list
+            'avg_bout_duration': [avg_bout_duration_seconds] if avg_bout_duration_seconds is not None else [0],  # Ensure a list
+        }
 
     # Box plot for Bout Durations
     plt.figure(figsize=(12, 6))
     bout_durations_data = [data_for_plotting[cl]['bout_durations'] for cl in class_labels.values()]
-    plt.boxplot(bout_durations_data, labels=class_labels.values(), showmeans=True, meanline=True)
+    plt.boxplot(bout_durations_data, tick_labels=class_labels.values(), showmeans=True, meanline=True)
     plt.title(f'Bout Durations for {video_name}')
     plt.ylabel('Duration (Frames)')
     plt.xlabel('Behavior')
-    #Adding the SEM
-    for i, (class_label, data) in enumerate(data_for_plotting.items()):
-        if data['bout_durations']:  # Ensure there's data to calculate
-            mean_duration = np.mean(data['bout_durations'])
-            sem_duration = sem(data['bout_durations'])
-            plt.errorbar(i + 1, mean_duration, yerr=sem_duration, fmt='none', ecolor='red', capsize=5, label='SEM' if i == 0 else "") # Only show label once
-    plt.legend()
     plt.grid(True)
     plt.tight_layout()
     plt.savefig(os.path.join(output_folder, f"{video_name}_bout_durations.png"))
     plt.close()
 
-
-    # Bar plot for Average Time Between Bouts
+    # Box plot for Average Time Between Bouts
     plt.figure(figsize=(12, 6))
-    avg_times_between = [data_for_plotting[cl]['avg_time_between_bouts'] for cl in class_labels.values()]
-    plt.bar(class_labels.values(), avg_times_between, yerr=[sem([data_for_plotting[cl]['avg_time_between_bouts']]) for cl in class_labels.values()], capsize=5, color='skyblue', edgecolor='black') # SEM
+    avg_times_between_data = [data_for_plotting[cl]['avg_time_between_bouts'] for cl in class_labels.values()]
+    plt.boxplot(avg_times_between_data, tick_labels=class_labels.values(), showmeans=True, meanline=True)
     plt.title(f'Average Time Between Bouts for {video_name}')
     plt.ylabel('Time (Seconds)')
     plt.xlabel('Behavior')
-    plt.grid(True, axis='y')
+    plt.grid(True)
     plt.tight_layout()
     plt.savefig(os.path.join(output_folder, f"{video_name}_avg_time_between_bouts.png"))
     plt.close()
 
-    # Bar plot for Average Bout Duration
+    # Box plot for Average Bout Duration
     plt.figure(figsize=(12, 6))
-    avg_bout_durations = [data_for_plotting[cl]['avg_bout_duration'] for cl in class_labels.values()]
-    plt.bar(class_labels.values(), avg_bout_durations, yerr=[sem([data_for_plotting[cl]['avg_bout_duration']]) for cl in class_labels.values()], capsize=5, color='lightgreen', edgecolor='black') #SEM
+    avg_bout_durations_data = [data_for_plotting[cl]['avg_bout_duration'] for cl in class_labels.values()]
+    plt.boxplot(avg_bout_durations_data, tick_labels=class_labels.values(), showmeans=True, meanline=True)
     plt.title(f'Average Bout Duration for {video_name}')
     plt.ylabel('Time (Seconds)')
     plt.xlabel('Behavior')
-    plt.grid(True, axis='y')
+    plt.grid(True)
     plt.tight_layout()
     plt.savefig(os.path.join(output_folder, f"{video_name}_avg_bout_duration.png"))
     plt.close()
@@ -279,14 +286,13 @@ def main():
     os.makedirs(csv_output_folder, exist_ok=True)
 
     try:
-        class_labels_dict = eval(args.class_labels)
+        class_labels_dict = ast.literal_eval(args.class_labels)  # Use ast.literal_eval
         if not isinstance(class_labels_dict, dict):
             raise ValueError("Class labels must be a dictionary.")
     except (ValueError, SyntaxError) as e:
         print(f"Error: Invalid class labels: {e}")
         return
-    
-    #Added min_bout_duration, and max_gap_duration here
+
     csv_file_path = analyze_detections(args.output_folder, class_labels_dict, csv_output_folder, args.video_name, args.min_bout_duration, args.max_gap_duration, args.frame_rate)
     if csv_file_path:
         save_analysis_to_excel(csv_file_path, args.output_folder, class_labels_dict, args.frame_rate, args.video_name)

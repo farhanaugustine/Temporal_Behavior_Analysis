@@ -6,6 +6,7 @@ import itertools
 from statsmodels.tsa.stattools import grangercausalitytests
 import warnings
 warnings.filterwarnings("ignore")
+import ast
 
 def calculate_granger_causality(csv_file_path, class_labels, max_lag_frames = 150):
    """
@@ -71,11 +72,10 @@ def main():
 
      #Create the csv output folder
     csv_output_folder = os.path.join(args.output_folder, "csv_output")
-    if not os.path.exists(csv_output_folder):
-       os.makedirs(csv_output_folder)
+    os.makedirs(csv_output_folder, exist_ok=True)
     
     try:
-        class_labels_dict = eval(args.class_labels)
+        class_labels_dict = ast.literal_eval(args.class_labels)  # Use ast.literal_eval
         if not isinstance(class_labels_dict, dict):
             raise ValueError("Class labels must be a dictionary.")
     except (ValueError, SyntaxError) as e:

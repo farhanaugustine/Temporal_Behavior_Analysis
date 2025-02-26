@@ -2,6 +2,7 @@ import os
 import pandas as pd
 import argparse
 from collections import defaultdict
+import ast  # Import ast
 
 def calculate_total_time_spent(csv_file_path, class_labels, frame_rate=30):
     """Calculates the total time spent on each behavior."""
@@ -50,7 +51,7 @@ def main():
     os.makedirs(csv_output_folder, exist_ok=True)
 
     try:
-        class_labels_dict = eval(args.class_labels)
+        class_labels_dict = ast.literal_eval(args.class_labels)  # Use ast.literal_eval
         if not isinstance(class_labels_dict, dict):
             raise ValueError("Class labels must be a dictionary.")
     except (ValueError, SyntaxError) as e:
