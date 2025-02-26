@@ -4,36 +4,39 @@ import pandas as pd
 import argparse
 import matplotlib.pyplot as plt
 from scipy.stats import kruskal
-import glob
 
 def create_combined_fft_analysis(all_data, output_folder):
     """Performs combined FFT analysis and statistical tests."""
 
-    # --- Statistical Analysis (Kruskal-Wallis) ---
     frequency_groups = []
     power_groups = []
     video_names = []
 
-    # Restructure data for Kruskal-Wallis: Each *video* is a group.
     for video, data in all_data.items():
-        video_names.append(video)  # Keep track of video names
+        video_names.append(video)
         frequency_groups.append(data['frequencies'])
         power_groups.append(data['powers'])
 
-    # --- Perform Kruskal-Wallis Test ---
+    # --- Perform Kruskal-Wallis Test (with checks) ---
     kruskal_frequency_results = None
     kruskal_power_results = None
-    try:
-        if len(frequency_groups) > 1 and all(len(group) > 0 for group in frequency_groups):  # Check for enough groups and non-empty
-            kruskal_frequency_results = kruskal(*frequency_groups)
-    except ValueError as e:
-        print(f"Error in Kruskal-Wallis (frequency): {e}.  Likely, all values within a group are identical.")
-    try:
-      if len(power_groups) > 1 and all(len(group) > 0 for group in power_groups):  # Check for enough groups and non-empty groups
-        kruskal_power_results = kruskal(*power_groups)
-    except ValueError as e:
-        print(f"Error in Kruskal-Wallis (power): {e}.  Likely, all values within a group are identical.")
 
+    # Check for sufficient data and variability *before* calling kruskal
+    if len(frequency_groups) > 1 and all(len(group) > 0 for group in frequency_groups) and any(len(set(group)) > 1 for group in frequency_groups):
+        try:
+            kruskal_frequency_results = kruskal(*frequency_groups)
+        except ValueError as e:
+            print(f"Error in Kruskal-Wallis (frequency): {e}")
+    else:
+        print("Insufficient or non-variable data for Kruskal-Wallis test on frequency.")
+
+    if len(power_groups) > 1 and all(len(group) > 0 for group in power_groups) and any(len(set(group)) > 1 for group in power_groups):
+        try:
+            kruskal_power_results = kruskal(*power_groups)
+        except ValueError as e:
+            print(f"Error in Kruskal-Wallis (power): {e}")
+    else:
+        print("Insufficient or non-variable data for Kruskal-Wallis test on power.")
     # --- Plotting (Combined Bar Plots)---
     #Prepare Data for Plotting
     freq_means = [np.mean(group) if len(group) > 0 else np.nan for group in frequency_groups]
@@ -86,8 +89,8 @@ def create_combined_fft_analysis(all_data, output_folder):
             f.write(f"  Kruskal-Wallis Test:\n")
             f.write(f"    H-statistic: {kruskal_frequency_results.statistic:.2f}\n")
             f.write(f"    p-value: {kruskal_frequency_results.pvalue:.3f}\n")
-            if kruskal_frequency_results.pvalue < 0.05: # added
-                f.write("    Significant difference found between videos.\n")
+            if kruskal_frequency_results.pvalue < 0.05:
+                f.write("    Significant difference found between videos (alpha=0.05).\n") # Clarified alpha
             else:
                 f.write("    No significant difference found between videos.\n")
         else:
@@ -98,14 +101,14 @@ def create_combined_fft_analysis(all_data, output_folder):
             f.write(f"  Kruskal-Wallis Test:\n")
             f.write(f"    H-statistic: {kruskal_power_results.statistic:.2f}\n")
             f.write(f"    p-value: {kruskal_power_results.pvalue:.3f}\n")
-            if kruskal_power_results.pvalue < 0.05: # added
-                f.write("    Significant difference found between videos.\n")
+            if kruskal_power_results.pvalue < 0.05:
+                f.write("    Significant difference found between videos (alpha=0.05).\n") # Clarified alpha
             else:
                 f.write("    No significant difference found between videos.\n")
         else:
             f.write("  Kruskal-Wallis Test: Not performed (insufficient or invalid data).\n")
 
-        # Descriptive stats
+       # Descriptive stats
         f.write("\nDescriptive Statistics (Dominant Frequency):\n")
         freq_all = [val for sublist in frequency_groups for val in sublist]  # Flatten the list
         if freq_all:  # Check if not empty
@@ -121,7 +124,6 @@ def create_combined_fft_analysis(all_data, output_folder):
             f.write("No power data available.\n")
 
 def main():
-    """Main function to parse arguments and run multi-video FFT analysis."""
     parser = argparse.ArgumentParser(description="Perform aggregated FFT analysis across multiple videos.")
     parser.add_argument("--fft_folder", required=True, help="Path to the folder containing FFT Excel files.")
     parser.add_argument("--output_folder", required=True, help="Path to the output folder for aggregated results.")
@@ -134,11 +136,8 @@ def main():
         if filename.endswith("_fft_analysis.xlsx"):
             filepath = os.path.join(args.fft_folder, filename)
             try:
-                df = pd.read_excel(filepath)  # Read the Excel file
-                # Extract video name
+                df = pd.read_excel(filepath)
                 video_name = filename.replace("_fft_analysis.xlsx", "")
-
-                # Initialize data structures for the video
                 all_data[video_name] = {'frequencies': [], 'powers': []}
 
                 for behavior in df['Behavior'].unique():
@@ -150,9 +149,9 @@ def main():
                             all_data[video_name]['frequencies'].append(frequency)
                         if pd.notna(power):
                             all_data[video_name]['powers'].append(power)
-            except Exception as e:
+            except (FileNotFoundError, Exception) as e:  # Catch FileNotFoundError explicitly
                 print(f"Error processing {filename}: {e}")
-                continue  # Skip to the next file on error
+                continue
 
     create_combined_fft_analysis(all_data, args.output_folder)
 

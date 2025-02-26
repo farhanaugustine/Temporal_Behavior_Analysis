@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import argparse
 from scipy import stats
-from numpy import trapezoid
+from scipy.integrate import trapezoid  # Correct import
 from statsmodels.stats.multicomp import pairwise_tukeyhsd
 import re
 import ast
@@ -44,6 +44,11 @@ def analyze_cross_correlation_files(
 
             try:
                 df = pd.read_excel(filepath)
+                # --- Check for empty DataFrame ---
+                if df.empty:
+                    print(f"Skipping file {filename}: DataFrame is empty.")
+                    continue
+
             except FileNotFoundError:
                 print(f"File not found: {filepath}")
                 continue
@@ -102,10 +107,15 @@ def analyze_cross_correlation_files(
                 if metric == "peak_correlation":
                     metric_value = max(correlations, key=abs)
                 elif metric == "auc":
-                    metric_value = trapezoid(correlations, lags)
+                    # --- FIX: Handle potential empty lists ---
+                    if not lags or not correlations:
+                        print(f"Warning: Empty lags or correlations for {behavior_pair} in video {video_name}.  Setting AUC to NaN.")
+                        metric_value = np.nan
+                    else:
+                        metric_value = trapezoid(correlations, lags)
                 else:
                     print(f"Error: Invalid metric '{metric}'. Using peak correlation.")
-                    metric_value = max(correlations, key=abs)
+                    metric_value = max(correlations, key=abs)  # Default to peak
 
                 metric_values.append(metric_value)
                 video_names.append(video_name)
@@ -121,7 +131,7 @@ def analyze_cross_correlation_files(
     for behavior_pair, data in summary_data.items():
         all_metric_values.append(list(data["metric_values"].values()))
     #Check the requirements to perform Friedman Test
-    if len(all_metric_values) > 0 and all(len(sublist) > 2 for sublist in all_metric_values):
+    if len(all_metric_values) > 0 and all(len(sublist) > 2 for sublist in all_metric_values) and any(len(set(group)) > 1 for group in all_metric_values): #added the variability condition here.
         try:
             h_statistic, p_value = stats.friedmanchisquare(*all_metric_values)
             adjusted_p_value = benjamini_hochberg([p_value])[0]
@@ -159,13 +169,13 @@ def analyze_cross_correlation_files(
                     f"  No significant difference in {metric} between behavior pairs (FDR-adjusted)"
                 )
 
-            # Check for identical ranks within groups.
-            for i, behavior_data in enumerate(all_metric_values):
-                if np.allclose(behavior_data, behavior_data[0]):
-                    behavior_pair = list(summary_data.keys())[i]
-                    print(
-                        f"WARNING: All metric values for behavior pair '{behavior_pair}' are identical.  This might lead to unreliable Friedman test results."
-                    )
+            # Check for identical ranks within groups. (No longer needed due to variability condition)
+            #for i, behavior_data in enumerate(all_metric_values):
+            #    if np.allclose(behavior_data, behavior_data[0]):
+            #        behavior_pair = list(summary_data.keys())[i]
+            #        print(
+            #            f"WARNING: All metric values for behavior pair '{behavior_pair}' are identical.  This might lead to unreliable Friedman test results."
+            #        )
 
         except ValueError as e:
             print(
@@ -189,7 +199,7 @@ def analyze_cross_correlation_files(
             "significant": False,
             "medians": "N/A",
         }
-        print("Not enough data, or fewer than 3 videos per group, to perform the Friedman test.")
+        print("Not enough data, or fewer than 3 videos per group, or lack of variability to perform the Friedman test.")
 
     #Save the statistical summary into a file
     summary_output_path = os.path.join(output_folder, "cross_correlation_summary.txt")

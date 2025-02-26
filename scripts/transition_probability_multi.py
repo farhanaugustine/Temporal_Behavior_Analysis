@@ -6,16 +6,36 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 
-def create_combined_transition_heatmap(all_data, output_folder, file_prefix=""):
+def create_combined_transition_heatmap(all_data, output_folder):
     """Generates and saves a combined transition heatmap."""
     combined_df = pd.concat(all_data, ignore_index=True)
-    behaviors = sorted(set(combined_df['Current Behavior'].unique()) | set(combined_df['Next Behavior'].unique()))
+
+    # --- Check for empty combined_df ---
+    if combined_df.empty:
+        print("Error: Combined DataFrame is empty. Cannot create heatmap.")
+        return
+
+    # --- Find Unique Behaviors (and handle potential empty sets) ---
+    current_behaviors = combined_df['Current Behavior'].unique()
+    next_behaviors = combined_df['Next Behavior'].unique()
+    behaviors = sorted(set(current_behaviors) | set(next_behaviors))
+
+    if not behaviors:
+        print("Error: No behaviors found in the data. Cannot create heatmap.")
+        return
+
     behavior_to_index = {behavior: index for index, behavior in enumerate(behaviors)}
     transition_counts = np.zeros((len(behaviors), len(behaviors)))
 
     for _, row in combined_df.iterrows():
         current_behavior = row['Current Behavior']
         next_behavior = row['Next Behavior']
+
+        # --- Check if behaviors are in the mapping ---
+        if current_behavior not in behavior_to_index or next_behavior not in behavior_to_index:
+            print(f"Warning: Skipping row with unknown behavior(s): '{current_behavior}', '{next_behavior}'")
+            continue
+
         row_index = behavior_to_index[current_behavior]
         col_index = behavior_to_index[next_behavior]
         transition_counts[row_index][col_index] += 1  # Count transitions
@@ -34,11 +54,10 @@ def create_combined_transition_heatmap(all_data, output_folder, file_prefix=""):
     plt.xticks(rotation=45, ha="right")
     plt.yticks(rotation=0)
     plt.tight_layout()
-    output_path = os.path.join(output_folder, f"{file_prefix}combined_transition_heatmap.png")
+    output_path = os.path.join(output_folder, "combined_transition_heatmap.png")  # Simplified filename
     plt.savefig(output_path)
     plt.close()
     print(f"Combined heatmap saved to {output_path}")
-
 
 def analyze_transition_files(transition_files_path, output_folder):
     """Analyzes multiple transition files, generates heatmaps."""
@@ -50,6 +69,12 @@ def analyze_transition_files(transition_files_path, output_folder):
             filepath = os.path.join(transition_files_path, filename)
             try:
                 df = pd.read_excel(filepath)
+
+                # --- Check for empty DataFrame ---
+                if df.empty:
+                    print(f"Skipping file {filename}: DataFrame is empty.")
+                    continue
+
                 if not all(col in df.columns for col in ['Current Behavior', 'Next Behavior', 'Probability']):
                     print(f"Skipping file {filename}: Missing required columns.")
                     continue
@@ -64,7 +89,6 @@ def analyze_transition_files(transition_files_path, output_folder):
                     continue
 
                 all_dataframes.append(df)
-                # Removed the single video heatmap here
 
             except FileNotFoundError:
                 print(f"File not found: {filepath}")
@@ -72,7 +96,7 @@ def analyze_transition_files(transition_files_path, output_folder):
                 print(f"Error processing {filename}: {e}")
 
     if all_dataframes:
-        create_combined_transition_heatmap(all_dataframes, output_folder) # Creates heatmap from dataframe
+        create_combined_transition_heatmap(all_dataframes, output_folder) #creates heatmap from dataframes
     else:
         print("No valid data found to create a combined heatmap.")
 

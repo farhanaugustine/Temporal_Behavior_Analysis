@@ -7,7 +7,7 @@ import seaborn as sns
 import re  # Import the 're' module
 
 
-def calculate_combined_cross_correlation(all_data, output_folder):
+def calculate_combined_cross_correlation(all_data, output_folder, dpi=1200):
     """Calculates, plots, and returns combined cross-correlation data."""
 
     combined_data = {}  # Store combined data for heatmap
@@ -20,6 +20,11 @@ def calculate_combined_cross_correlation(all_data, output_folder):
         for video_name, data in video_data.items():
             combined_lags.extend(data["lags"])
             combined_correlations.extend(data["correlations"])
+
+        # --- FIX: Check if combined_lags is empty ---
+        if not combined_lags:
+            print(f"Warning: No lag data found for behavior pair '{behavior_pair}'. Skipping.")
+            continue  # Skip this behavior pair if no data
 
         # Sort by lag
         sorted_indices = np.argsort(combined_lags)
@@ -61,18 +66,23 @@ def calculate_combined_cross_correlation(all_data, output_folder):
         plt.xlabel("Lag (Frames)")
         plt.ylabel("Average Cross-Correlation Coefficient")
         plt.title(f"Combined Cross-Correlation for {behavior_pair}")
-        plt.grid(True, alpha=0.5)
+        plt.grid(True, alpha=0.5)  # Keep original alpha
         plt.legend(loc="upper right", fontsize=8)
         output_path = os.path.join(output_folder, f"{behavior_pair}_combined_cross_correlation.png")
-        plt.savefig(output_path)
+        plt.savefig(output_path, dpi=dpi)  # Save with specified DPI
         plt.close()
         print(f"Combined cross-correlation plot saved for {behavior_pair}")
 
     return combined_data
 
 
-def create_combined_correlation_heatmap(combined_data, output_folder):
+def create_combined_correlation_heatmap(combined_data, output_folder, dpi=1200):
     """Creates a heatmap of the combined cross-correlations."""
+
+    # --- FIX: Handle empty combined_data ---
+    if not combined_data:
+        print("Warning: No combined data to create heatmap.")
+        return
 
     # Find the overall min and max lags across all behavior pairs
     all_lags = []
@@ -114,7 +124,7 @@ def create_combined_correlation_heatmap(combined_data, output_folder):
     plt.tight_layout()
 
     output_path = os.path.join(output_folder, "combined_cross_correlation_heatmap.png")
-    plt.savefig(output_path)
+    plt.savefig(output_path, dpi=dpi)  # Save with specified DPI
     plt.close()
     print(f"Combined cross-correlation heatmap saved to {output_path}")
 
@@ -122,44 +132,57 @@ def main():
     parser = argparse.ArgumentParser(description="Combine and visualize cross-correlation results from multiple videos.")
     parser.add_argument("--cross_corr_folder", required=True, help="Path to the folder containing cross-correlation Excel files.")
     parser.add_argument("--output_folder", required=True, help="Path to the output folder for combined results.")
+    parser.add_argument("--dpi", type=int, default=1200, help="DPI for saved figures (default: 1200).") # Added DPI argument.
     args = parser.parse_args()
 
-    # Create the output folder
+    print(f"Input folder: {args.cross_corr_folder}")
+    print(f"Output folder: {args.output_folder}")
+
     os.makedirs(args.output_folder, exist_ok=True)
 
     all_data = {}
 
-    # Loop through files in the input folder
     for filename in os.listdir(args.cross_corr_folder):
         if filename.endswith("_cross_correlation.xlsx"):
             filepath = os.path.join(args.cross_corr_folder, filename)
             video_name = filename.replace("_cross_correlation.xlsx", "")
+            print(f"Processing file: {filepath}, video_name: {video_name}")
 
             try:
-                df = pd.read_excel(filepath)
+                df = pd.read_excel(filepath)  # Read without dtype enforcement
+                 # --- Check for empty DataFrame ---
+                if df.empty:
+                    print(f"Skipping file {filename}: DataFrame is empty.")
+                    continue
+                print(f"Successfully read file: {filename}")
+
+                # --- Extract Lag Numbers using Regular Expressions ---
+                df['Lag'] = df['Lag'].str.extract(r'lag_(-?\d+)').astype(int)
+                print(f"DataFrame head after lag extraction:\n{df.head()}")
+                print(f"DataFrame dtypes after lag extraction:\n{df.dtypes}")
+
+                for index, row in df.iterrows():
+                    behavior1 = row["Behavior 1"]
+                    behavior2 = row["Behavior 2"]
+                    lag = row["Lag"]  # Now a number
+                    correlation = row["Cross Correlation"]
+                    behavior_pair = f"{behavior1} vs {behavior2}"
+
+                    if behavior_pair not in all_data:
+                        all_data[behavior_pair] = {}
+                    if video_name not in all_data[behavior_pair]:
+                        all_data[behavior_pair][video_name] = {"lags": [], "correlations": []}
+
+                    all_data[behavior_pair][video_name]["lags"].append(lag)
+                    all_data[behavior_pair][video_name]["correlations"].append(correlation)
+
             except Exception as e:
-                print(f"Error reading file {filename}: {e}")
-                continue  # Skip to the next file
+                print(f"Error reading or processing file {filename}: {e}")
+                continue
 
-            # Loop through the excel files, extract data, store in the all_data dictionary
-            for index, row in df.iterrows():
-                behavior1 = row["Behavior 1"]
-                behavior2 = row["Behavior 2"]
-                lag = row["Lag"]
-                correlation = row["Cross Correlation"]
-                behavior_pair = f"{behavior1} vs {behavior2}"
-
-                if behavior_pair not in all_data:
-                    all_data[behavior_pair] = {}
-                if video_name not in all_data[behavior_pair]:
-                    all_data[behavior_pair][video_name] = {"lags": [], "correlations": []}
-
-                all_data[behavior_pair][video_name]["lags"].append(lag)
-                all_data[behavior_pair][video_name]["correlations"].append(correlation)
-
-    # Calculate and plot combined data, create the heatmap
-    combined_data = calculate_combined_cross_correlation(all_data, args.output_folder)
-    create_combined_correlation_heatmap(combined_data, args.output_folder)
+    print(f"all_data: {all_data}")
+    combined_data = calculate_combined_cross_correlation(all_data, args.output_folder, args.dpi) # Pass DPI
+    create_combined_correlation_heatmap(combined_data, args.output_folder, args.dpi) # Pass DPI
 
 if __name__ == "__main__":
     main()
