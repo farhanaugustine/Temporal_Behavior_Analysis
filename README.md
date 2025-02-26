@@ -6,16 +6,26 @@ This project provides a user-friendly graphical interface (GUI) for analyzing be
 * **Affiliation:** University of Maryland Baltimore County (UMBC)
 
 # Getting Started (GUI)
-<img width="704" alt="image" src="https://github.com/user-attachments/assets/271186f8-f71c-4546-9c60-36642a8ed1a0" />
+<img width="725" alt="image" src="https://github.com/user-attachments/assets/54f7596b-2b20-4c93-8380-eb9e5bc2dc19" />
+
 
 
 1.  **Installation:**
-    *   **Option 1: Using the Executable** (Recommended for most users):
+    * **Option 1: Useing Anaconda to create a virtual enviroment (Recommended for most users):
+    	*   Using the provided `environment.yml` file create a virtual enviroment within Anaconda.
+	```
+ 	  git clone https://github.com/farhanaugustine/Temporal_Behavior_Analysis.git
+   	  cd Temporal_Behavior_Analysis
+ 	  conda env create -f environment.yml
+ 	  conda activate YOLO
+ 	  python GUI.py
+	```      
+    *   **Option 2: Using the Executable**:
         *   If you received a pre-built executable (e.g., `BehavioralAnalysisTool.exe` on Windows, or an application bundle on macOS):
             1.  Simply double-click the executable to launch the application.  No further installation is required.
             2. If you're on macOS, you may need to go to System Preferences->Security & Privacy->General. In some cases, you must manually allow applications to run in this section of the settings.
         *	Note: Some features of macOS and Windows restrict unknown applications. It is important to check the security settings and allowlist this application.
-	*  **Option 2: Running from Source** (For developers or users comfortable with Python):
+	*  **Option 3: Running from Source** (For developers or users comfortable with Python):
         *   Install an anaconda environment with dependencies (see list of dependencies below)
         *   Make sure you have Python 3.10 or later installed.
         *   Install the required libraries:
@@ -60,7 +70,7 @@ This project provides a user-friendly graphical interface (GUI) for analyzing be
 
 5.  **Run General Analysis:** Click the red button labeled **"general_analysis (RUN THIS FIRST)"**.  This is *essential* and must be done before running any other analyses.  This step processes the raw YOLO output and creates a CSV file that the other analyses use.  Progress and any errors will be shown in the "Log" area at the bottom of the window.
 
-6.  **Run Other Analyses:** Once the general analysis is complete, you can click any of the other buttons in the "Analysis Scripts" section to perform specific analyses:
+6.  **Run Other Analyses:** Once the general analysis is complete, you can click any of the other buttons in the "Analysis Scripts" section to perform specific analyses for single-video analysis only:
     *   **transition_probabilities:** Calculates how often one behavior follows another.
     *   **time_lagged_cross_correlation:** Looks for relationships between behaviors at different time lags.
     *   **fft_analysis:**  Identifies rhythmic patterns in the behaviors.
@@ -96,26 +106,38 @@ pip install pyinstaller
 ```
 2. **Build the Executable [After installing dependencies]:** open a terminal in the directory containing GUI.py and run:
 ```bash
-pyinstaller --onefile --windowed --add-data "scripts;scripts" --hidden-import pandas --hidden-import scipy.signal --hidden-import statsmodels.tsa.stattools --hidden-import openpyxl --hidden-import sklearn --hidden-import matplotlib --hidden-import seaborn --hidden-import scipy.stats --hidden-import statsmodels.stats.multicomp --hidden-import re GUI.py
+pyinstaller --onefile --windowed --add-data "scripts;scripts" GUI.py
 ```
 This command will create a dist folder containing the standalone application. The --hidden-import options may need to be adjusted depending on your specific environment and any additional modules you might be using. If you encounter ModuleNotFoundError errors when running the executable, add the missing module using --hidden-import. It is recommended to first run the application without --windowed so that the command line will be present to troubleshoot potential errors.
 
 # Script Descriptions (Brief):
 * general_analysis.py: Processes raw YOLO output, defines bouts, creates the main CSV file. Run this first.
 
-* transition_probabilities.py: Calculates and visualizes transition probabilities.
+* transition_probabilities.py: Calculates and visualizes transition probabilities for EACH video and make sure to move and store them in the transition folder.
 
-* time_lagged_cross_correlation.py: Calculates time-lagged cross-correlations.
+* time_lagged_cross_correlation.py: Calculates time-lagged cross-correlations for each video.
 
-* fft_analysis.py: Performs FFT analysis to find dominant frequencies.
+* fft_analysis.py: Performs FFT analysis to find dominant frequencies for each video.
 
-* behavioral_rhythms.py: Detects behavioral rhythms.
+* behavioral_rhythms.py: Detects behavioral rhythms in a single video.
 
 * basic_correlations.py: Calculates Pearson correlations.
 
 * total_time_spent.py: Calculates total time spent on each behavior.
 
 * granger_causality.py: Performs Granger Causality Test.
+
+* HMMs.py: Runs the HMMs.py script for sequence analysis.
+
+* n_gram_analysis.py: Runs the n_gram_analysis.py script for sequence analysis.
+
+* sequence_mining.py: Runs the sequence_mining.py script for sequence analysis.
+
+* HMMs_multi.py: Runs the HMMs_multi.py script for multi-video sequence analysis.
+
+* n_gram_analysis_multi.py: Runs the n_gram_analysis_multi.py script for multi-video sequence analysis.
+
+* sequence_mining_multi.py: Runs the sequence_mining_multi.py script for multi-video sequence analysis.
 
 # Dependencies:
 Dependencies
@@ -132,9 +154,11 @@ This project requires Python 3.10+ and the following libraries:
 * scikit-learn (sklearn)
 * re
 * shutil
+* hmmlearn
+* mlxtend
+* networkx
 
 Install them using:
 ```bash
-pip install tkinter pandas numpy matplotlib seaborn scipy statsmodels openpyxl scikit-learn
+pip install tkinter pandas numpy matplotlib seaborn scipy statsmodels openpyxl scikit-learn hmmlearn mlxtend networkx
 ```
-
