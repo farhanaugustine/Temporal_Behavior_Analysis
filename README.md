@@ -11,7 +11,7 @@ This project provides a user-friendly graphical interface (GUI) for analyzing be
 
 
 1.  **Installation:**
-    * **Option 1: Useing Anaconda to create a virtual enviroment (Recommended for most users):
+    * **Option 1: Using Anaconda to create a virtual enviroment (Recommended for most users):**
     	*   Using the provided `environment.yml` file create a virtual enviroment within Anaconda.
 	```
  	  git clone https://github.com/farhanaugustine/Temporal_Behavior_Analysis.git
