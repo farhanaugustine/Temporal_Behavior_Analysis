@@ -123,22 +123,44 @@ def run_script(script_name: str, output_folder: str, class_labels_dict: dict, lo
         command = [
             "python",
             script_path,
-            "--output_folder", output_folder,
-            "--class_labels", str(class_labels_dict),
-            "--frame_rate", str(frame_rate_int),
-            "--video_name", video_name,
         ]
-        # Add additional arguments based on script name, conditionally.
+
+        # Add arguments based on script name, conditionally.
         if script_name == "behavioral_rhythms_single":
-          command.extend(["--prominence", "1.0"])  #Keep default values unless changed by user.
+            command.extend(["--output_folder", output_folder,
+                            "--class_labels", str(class_labels_dict),
+                            "--frame_rate", str(frame_rate_int),
+                            "--video_name", video_name,
+                            "--prominence", "1.0"])
         elif script_name == "transfer_entropy":
-          command.extend(["--max_lag", "150", '--k', '3']) #Keep default values unless changed by user.
+            command.extend(["--output_folder", output_folder,
+                            "--class_labels", str(class_labels_dict),
+                            "--frame_rate", str(frame_rate_int),
+                            "--video_name", video_name,
+                            "--max_lag", "150", '--k', '3'])
         elif script_name == "cross_correlation_single":
-            command.extend(["--max_lag_frames", "150"])
-        # ONLY add min_bout_duration and max_gap_duration if the script is general_analysis
+            command.extend(["--output_folder", output_folder,
+                            "--class_labels", str(class_labels_dict),
+                            "--frame_rate", str(frame_rate_int),
+                            "--video_name", video_name,
+                            "--max_lag_frames", "150"])
         elif script_name == "general_analysis":
-            command.extend(["--min_bout_duration", str(min_bout_duration),
+            command.extend(["--output_folder", output_folder,
+                            "--class_labels", str(class_labels_dict),
+                            "--frame_rate", str(frame_rate_int),
+                            "--video_name", video_name,
+                            "--min_bout_duration", str(min_bout_duration),
                             "--max_gap_duration", str(max_gap_duration)])
+        elif script_name in ("HMMs", "n_gram_analysis", "sequence_mining"):
+            csv_folder = os.path.join(output_folder, "csv_output") #Subfolder name of csv.
+            csv_file_name = f"{video_name}_analysis.csv"  #CSV is based on the video_name, includes "_analysis"
+            csv_file_path = os.path.join(csv_folder, csv_file_name)
+
+            if not os.path.exists(csv_file_path):
+                messagebox.showerror("Error", f"CSV file not found: {csv_file_path}.  Did you run general_analysis first?")
+                return
+
+            command.extend(["--csv_file", csv_file_path, "--output_folder", output_folder, "--video_name", video_name]) #Only the CSV file path, output folder and video name so that pngs are saved to the correct spot
 
         # Use subprocess.run to execute the script
         result = subprocess.run(
@@ -351,9 +373,7 @@ def run_multi_transition_prob_script(output_folder, log_text):
         result = subprocess.run(command, capture_output=True, text=True, check=True)
 
         log_text.insert(tk.END, f"Script transition_probability_multi output:\n")
-        log_text.insert(tk.END, result.stdout)
-        if result.stderr:
-            log_text.insert(tk.END, f"Script transition_probability_multi errors:\n{result.stderr}\n")
+        log_text.insert(tk.END, f"Script transition_probability_multi errors:\n{result.stderr}\n")
         log_text.insert(tk.END, f"Script transition_probability_multi executed successfully.\n")
 
     except subprocess.CalledProcessError as e:
@@ -434,7 +454,7 @@ def create_gui() -> tk.Tk:
     input_frame = ttk.LabelFrame(root, text="Input")
     input_frame.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
 
-    # Output Folder
+    # YOLO Output Folder
     ttk.Label(input_frame, text="YOLO Output Folder:").grid(row=0, column=0, sticky="w", padx=5, pady=2)
     output_folder_entry = ttk.Entry(input_frame, width=40)
     output_folder_entry.grid(row=0, column=1, sticky="ew", padx=5, pady=2)
@@ -452,6 +472,12 @@ def create_gui() -> tk.Tk:
     ttk.Label(input_frame, text="Video Name:").grid(row=2, column=0, sticky="w", padx=5, pady=2)
     video_name_entry = ttk.Entry(input_frame, width=40)
     video_name_entry.grid(row=2, column=1, sticky="ew", padx=5, pady=2)
+
+     # Input Folder for Multi-Video Analysis
+    ttk.Label(input_frame, text="Multi-Video Input Folder:").grid(row=3, column=0, sticky="w", padx=5, pady=2)
+    input_folder_entry = ttk.Entry(input_frame, width=40)
+    input_folder_entry.grid(row=3, column=1, sticky="ew", padx=5, pady=2)
+    ttk.Button(input_frame, text="Browse", command=lambda: browse_folder(input_folder_entry)).grid(row=3, column=2, padx=5, pady=2)
 
     # --- Parameters Section ---
     parameter_frame = ttk.LabelFrame(root, text="Parameters")
@@ -537,7 +563,7 @@ def create_gui() -> tk.Tk:
                                 command=lambda: run_script("fft_analysis_single", output_folder_entry.get(),
                                                             class_labels_dict, log_text,
                                                             frame_rate_entry.get(), video_name_entry.get(),
-                                                            min_bout_duration_entry.get(), max_gap_duration_entry.get()))
+                                                            min_bout_duration_entry.get(),        max_gap_duration_entry.get()))
     btn_fft_single.grid(row=0, column=0, padx=5, pady=5, sticky="ew")
     ToolTip(btn_fft_single, "Performs Fast Fourier Transform (FFT) analysis.")
 
@@ -614,6 +640,52 @@ def create_gui() -> tk.Tk:
     btn_transition_multi.grid(row=1, column=0, padx=5, pady=5, sticky="ew")
     ToolTip(btn_transition_multi, "Combines transition probability results.")
 
+    # --- Sequence Analysis Frame ---
+    sequence_frame = ttk.LabelFrame(analysis_frame, text="Sequence Analysis")
+    sequence_frame.grid(row=2, column=0, padx=5, pady=5, sticky="nsew")
+
+    btn_hmms = ttk.Button(sequence_frame, text="HMMs",
+                            command=lambda: run_script("HMMs", output_folder_entry.get(),
+                                                        class_labels_dict, log_text,
+                                                        frame_rate_entry.get(), video_name_entry.get(),
+                                                        min_bout_duration_entry.get(), max_gap_duration_entry.get()))
+    btn_hmms.grid(row=0, column=0, padx=5, pady=5, sticky="ew")
+    ToolTip(btn_hmms, "Runs the HMMs.py script.")
+
+    btn_ngram = ttk.Button(sequence_frame, text="n_gram_analysis",
+                               command=lambda: run_script("n_gram_analysis", output_folder_entry.get(),
+                                                            class_labels_dict, log_text,
+                                                            frame_rate_entry.get(), video_name_entry.get(),
+                                                            min_bout_duration_entry.get(), max_gap_duration_entry.get()))
+    btn_ngram.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+    ToolTip(btn_ngram, "Runs the n_gram_analysis.py script.")
+
+    btn_sequence_mining = ttk.Button(sequence_frame, text="sequence_mining",
+                                    command=lambda: run_script("sequence_mining", output_folder_entry.get(),
+                                                                class_labels_dict, log_text,
+                                                                frame_rate_entry.get(), video_name_entry.get(),
+                                                                min_bout_duration_entry.get(), max_gap_duration_entry.get()))
+    btn_sequence_mining.grid(row=0, column=2, padx=5, pady=5, sticky="ew")
+    ToolTip(btn_sequence_mining, "Runs the sequence_mining.py script.")
+
+    # --- Multi-Video Analysis Frame ---
+    multi_frame = ttk.LabelFrame(analysis_frame, text="Multi-Video Analysis")
+    multi_frame.grid(row=2, column=1, columnspan=2, padx=5, pady=5, sticky="nsew")
+
+    btn_hmms_multi = ttk.Button(multi_frame, text="HMMs_multi",
+                            command=lambda: run_multi_script("HMMs_multi", input_folder_entry.get(), output_folder_entry.get(), log_text))
+    btn_hmms_multi.grid(row=0, column=0, padx=5, pady=5, sticky="ew")
+    ToolTip(btn_hmms_multi, "Runs the HMMs_multi.py script.")
+
+    btn_ngram_multi = ttk.Button(multi_frame, text="n_gram_analysis_multi",
+                               command=lambda: run_multi_script("n_gram_analysis_multi", input_folder_entry.get(), output_folder_entry.get(), log_text))
+    btn_ngram_multi.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+    ToolTip(btn_ngram_multi, "Runs the n_gram_analysis_multi.py script.")
+
+    btn_sequence_mining_multi = ttk.Button(multi_frame, text="sequence_mining_multi",
+                                    command=lambda: run_multi_script("sequence_mining_multi", input_folder_entry.get(), output_folder_entry.get(), log_text))
+    btn_sequence_mining_multi.grid(row=0, column=2, padx=5, pady=5, sticky="ew")
+    ToolTip(btn_sequence_mining_multi, "Runs the sequence_mining_multi.py script.")
 
     # --- Log Display ---
     log_frame = ttk.LabelFrame(root, text="Log")
@@ -642,8 +714,80 @@ def create_gui() -> tk.Tk:
     ToolTip(min_bout_duration_entry, "Enter the minimum duration of a bout in frames.")
     ToolTip(max_gap_duration_entry, "Enter the maximum gap allowed between frames within a bout.")
     ToolTip(organize_button, "Organize TXT files into subfolders named after the video.")
+    ToolTip(input_folder_entry, "Select the folder containing multiple CSV files for Multi-Video Analysis.")
 
     return root
+
+def run_multi_script(script_name: str, input_folder: str, output_folder: str, log_text: scrolledtext.ScrolledText):
+    """Runs a selected script from the scripts folder."""
+    if not output_folder:
+        messagebox.showerror("Error", "Please select an output folder.")
+        return
+
+    if not input_folder:
+        messagebox.showerror("Error", "Please select an input folder for multi-video analysis.")
+        return
+
+    try:
+        # Check if the input folder contains CSV files named *_analysis.csv
+        csv_files = [f for f in os.listdir(input_folder) if f.endswith(".csv")]
+        if not csv_files:
+            messagebox.showerror("Error", "The input folder does not contain any CSV files ending with '.csv'.")
+            return
+
+        # Get the absolute path of the directory containing main.py
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        script_path = os.path.join(current_dir, "scripts", f"{script_name}.py")
+
+        # Construct the command-line arguments.
+        command = [
+            "python",
+            script_path,
+            "--input_folder", input_folder, #This is the user defined input folder
+            "--output_folder", output_folder,
+        ]
+
+        # Use subprocess.run to execute the script
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+
+        # Display output in the log
+        log_text.insert(tk.END, f"Script {script_name} output:\n")
+        log_text.insert(tk.END, result.stdout)
+        if result.stderr:
+            log_text.insert(tk.END, f"Script {script_name} errors:\n{result.stderr}\n")
+        log_text.insert(tk.END, f"Script {script_name} executed successfully.\n")
+
+    except subprocess.CalledProcessError as e:
+        messagebox.showerror("Error", f"Error running {script_name}: {e}")
+        log_text.insert(tk.END, f"Error running {script_name}:\n{e.stdout}\n{e.stderr}\n")
+    except FileNotFoundError:
+        messagebox.showerror("Error", f"Could not find script: {script_name}.py\nPath: {script_path}") #More descriptive error message
+        log_text.insert(tk.END, f"Error: Could not find {script_name}.py\n")
+    except Exception as e:
+        messagebox.showerror("Error", f"An unexpected error occurred: {e}")
+        log_text.insert(tk.END, f"An unexpected error occurred: {e}\n")
+
+def edit_class_labels(class_labels_dict: dict, class_labels_entry: ttk.Entry):
+    """Opens a dialog to edit class labels and updates the entry widget."""
+    current_labels_str = str(class_labels_dict)
+    new_labels_str = simpledialog.askstring("Edit Class Labels", "Enter class labels as a dictionary (e.g., {0: 'Label1', 1: 'Label2'}):", initialvalue=current_labels_str)
+    if new_labels_str:
+        try:
+            new_labels_dict = ast.literal_eval(new_labels_str)  # Use ast.literal_eval()
+            if isinstance(new_labels_dict, dict):
+                class_labels_dict.clear()
+                class_labels_dict.update(new_labels_dict)
+                class_labels_entry.delete(0, tk.END)
+                class_labels_entry.insert(0, str(class_labels_dict))
+            else:
+                messagebox.showerror("Error", "Invalid input. Please enter a valid dictionary.")
+        except (ValueError, SyntaxError) as e:  # Catch SyntaxError too
+            messagebox.showerror("Error", f"Invalid input: {e}")
 
 if __name__ == '__main__':
     app = create_gui()
