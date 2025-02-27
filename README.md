@@ -96,20 +96,6 @@ python scripts/transition_probabilities.py --help
 python scripts/general_analysis.py --output_folder /path/to/yolo/output --class_labels "{0: 'Exploration', 1: 'Grooming'}" --frame_rate 30 --video_name myvideo --min_bout_duration 3 --max_gap_duration 5
 ```
 
-# Creating a Standalone Application (Executable):
-
-You can use PyInstaller to create a standalone executable, allowing you to run the application without needing to install Python and all the libraries separately.
-
-1. **Install PyInstaller:**
-```bash
-pip install pyinstaller
-```
-2. **Build the Executable [After installing dependencies]:** open a terminal in the directory containing GUI.py and run:
-```bash
-pyinstaller --onefile --windowed --add-data "scripts;scripts" GUI.py
-```
-This command will create a dist folder containing the standalone application. The --hidden-import options may need to be adjusted depending on your specific environment and any additional modules you might be using. If you encounter ModuleNotFoundError errors when running the executable, add the missing module using --hidden-import. It is recommended to first run the application without --windowed so that the command line will be present to troubleshoot potential errors.
-
 # Script Descriptions (Brief):
 * general_analysis.py: Processes raw YOLO output, defines bouts, creates the main CSV file. Run this first.
 
