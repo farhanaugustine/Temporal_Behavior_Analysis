@@ -70,8 +70,8 @@ def run_script(script_name: str, output_folder: str, class_labels_dict: dict, lo
         return
 
     if not video_name:
-         messagebox.showerror("Error", "Please select a video name.")
-         return
+        messagebox.showerror("Error", "Please select a video name.")
+        return
 
     if not class_labels_dict:
         messagebox.showerror("Error", "Class labels cannot be empty. Please define them.")
@@ -94,26 +94,6 @@ def run_script(script_name: str, output_folder: str, class_labels_dict: dict, lo
         messagebox.showerror("Error", "Frame rate must be a valid integer.")
         return
 
-    # Input validation for min_bout_duration and max_gap_duration (ONLY needed for general_analysis)
-    if script_name == "general_analysis": #ONLY general_analysis needs these two.
-        try:
-            min_bout_duration = int(min_bout_duration)
-            if min_bout_duration <= 0:
-                messagebox.showerror("Error", "Minimum bout duration must be a positive integer.")
-                return
-        except ValueError:
-            messagebox.showerror("Error", "Minimum bout duration must be a valid integer.")
-            return
-
-        try:
-            max_gap_duration = int(max_gap_duration)
-            if max_gap_duration < 0:  # Allow a gap of 0 (no gap tolerance)
-                messagebox.showerror("Error", "Maximum gap duration must be a non-negative integer.")
-                return
-        except ValueError:
-            messagebox.showerror("Error", "Maximum gap duration must be a valid integer.")
-            return
-
     try:
         # Get the absolute path of the directory containing main.py
         current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -125,7 +105,7 @@ def run_script(script_name: str, output_folder: str, class_labels_dict: dict, lo
             script_path,
         ]
 
-        # Add arguments based on script name, conditionally.
+        # --- Add arguments based on script name, conditionally. ---
         if script_name == "behavioral_rhythms_single":
             command.extend(["--output_folder", output_folder,
                             "--class_labels", str(class_labels_dict),
@@ -162,30 +142,30 @@ def run_script(script_name: str, output_folder: str, class_labels_dict: dict, lo
                             "--frame_rate", str(frame_rate_int),
                             "--video_name", video_name])
         elif script_name in ("HMMs", "n_gram_analysis", "sequence_mining"):
-            csv_folder = os.path.join(output_folder, "csv_output") #Subfolder name of csv.
-            csv_file_name = f"{video_name}_analysis.csv"  #CSV is based on the video_name, includes "_analysis"
+            csv_folder = os.path.join(output_folder, "csv_output")  # Subfolder name of csv.
+            csv_file_name = f"{video_name}_analysis.csv"  # CSV is based on the video_name, includes "_analysis"
             csv_file_path = os.path.join(csv_folder, csv_file_name)
 
             if not os.path.exists(csv_file_path):
                 messagebox.showerror("Error", f"CSV file not found: {csv_file_path}.  Did you run general_analysis first?")
                 return
 
-            command.extend(["--csv_file", csv_file_path, "--output_folder", output_folder, "--video_name", video_name]) #Only the CSV file path, output folder and video name so that pngs are saved to the correct spot
+            command.extend(["--csv_file", csv_file_path])  # Only the CSV file path
         elif script_name == "fft_analysis_single":
-                command.extend(["--output_folder", output_folder,
-                                "--class_labels", str(class_labels_dict),
-                                "--frame_rate", str(frame_rate_int),
-                                "--video_name", video_name])
+            command.extend(["--output_folder", output_folder,
+                            "--class_labels", str(class_labels_dict),
+                            "--frame_rate", str(frame_rate_int),
+                            "--video_name", video_name])
         elif script_name == "transition_probability_single":
             command.extend(["--output_folder", output_folder,
-                    "--class_labels", str(class_labels_dict),  # Convert to string!
-                    "--frame_rate", str(frame_rate_int),
-                    "--video_name", video_name]) #Class labels needs fixing here
+                            "--class_labels", str(class_labels_dict),
+                            "--frame_rate", str(frame_rate_int),
+                            "--video_name", video_name])
         elif script_name == "granger_causality":
-             command.extend(["--output_folder", output_folder,
-                                "--class_labels", str(class_labels_dict),
-                                "--frame_rate", str(frame_rate_int),
-                                "--video_name", video_name])
+            command.extend(["--output_folder", output_folder,
+                            "--class_labels", str(class_labels_dict),
+                            "--frame_rate", str(frame_rate_int),
+                            "--video_name", video_name])
         else:
             messagebox.showerror("Error", f"Script '{script_name}' is not properly configured in GUI.py.  Please ensure all scripts have their command line parameters listed.")
             return
@@ -209,12 +189,11 @@ def run_script(script_name: str, output_folder: str, class_labels_dict: dict, lo
         messagebox.showerror("Error", f"Error running {script_name}: {e}")
         log_text.insert(tk.END, f"Error running {script_name}:\n{e.stdout}\n{e.stderr}\n")
     except FileNotFoundError:
-        messagebox.showerror("Error", f"Could not find script: {script_name}.py\nPath: {script_path}") #More descriptive error message
+        messagebox.showerror("Error", f"Could not find script: {script_name}.py\nPath: {script_path}")  # More descriptive error message
         log_text.insert(tk.END, f"Error: Could not find {script_name}.py\n")
     except Exception as e:
         messagebox.showerror("Error", f"An unexpected error occurred: {e}")
         log_text.insert(tk.END, f"An unexpected error occurred: {e}\n")
-
 def run_multi_rhythm_script(output_folder, log_text):
     """Runs the multi-video rhythm analysis script."""
     if not output_folder:
@@ -355,7 +334,7 @@ def run_cross_correlation_stats_script(output_folder, log_text):
             script_path,
             "--cross_corr_folder", cross_corr_folder,
             "--output_folder", output_folder,
-            "--metric", "peak_correlation",
+            "--metric", "peak_correlation", #Include the metric
         ]
 
         result = subprocess.run(command, capture_output=True, text=True, check=True)
@@ -363,7 +342,7 @@ def run_cross_correlation_stats_script(output_folder, log_text):
         log_text.insert(tk.END, f"Script cross_correlation_stats output:\n")
         log_text.insert(tk.END, result.stdout)
         if result.stderr:
-            log_text.insert(tk.END, f"Script cross_correlation_stats errors:\n{e.stderr}\n") 
+            log_text.insert(tk.END, f"Script cross_correlation_stats errors:\n{e.stderr}\n") #corrected var name
         log_text.insert(tk.END, f"Script cross_correlation_stats executed successfully.\n")
 
     except subprocess.CalledProcessError as e:
@@ -428,7 +407,7 @@ def organize_txt_files(source_folder: str, log_text: scrolledtext.ScrolledText):
             filepath = os.path.join(source_folder, filename)
             match = re.match(r"^(.*?)_\d+\.txt$", filename)
             if match:
-                video_name = match.group(1).rstrip("_") 
+                video_name = match.group(1).rstrip("_")  # Remove trailing underscores
                 if video_name not in video_files:
                     video_files[video_name] = []
                 video_files[video_name].append(filepath)
@@ -522,12 +501,12 @@ def create_gui() -> tk.Tk:
 
     # --- Analysis Scripts Section ---
     # Use a main frame, and subframes for categories.
-    analysis_frame = ttk.Frame(root)  
+    analysis_frame = ttk.Frame(root)  # Main frame, NOT a LabelFrame
     analysis_frame.grid(row=2, column=0, columnspan=2, padx=10, pady=10, sticky="nsew")
 
     # --- General Analysis Frame ---
     general_frame = ttk.LabelFrame(analysis_frame, text="General Analysis")
-    general_frame.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")  
+    general_frame.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")  # Back to individual frames
 
     instruction_label = ttk.Label(general_frame, text="Please run 'general_analysis' first.", font=("Arial", 10, "bold"))
     instruction_label.grid(row=0, column=0, columnspan=2, padx=5, pady=5, sticky="ew")
@@ -553,7 +532,7 @@ def create_gui() -> tk.Tk:
 
     # --- Rhythm Analysis Frame ---
     rhythm_frame = ttk.LabelFrame(analysis_frame, text="Rhythm Analysis")
-    rhythm_frame.grid(row=0, column=1, padx=5, pady=5, sticky="nsew") 
+    rhythm_frame.grid(row=0, column=1, padx=5, pady=5, sticky="nsew") # Next column
 
     btn_rhythms_single = ttk.Button(rhythm_frame, text="behavioral_rhythms_single",
                                     command=lambda: run_script("behavioral_rhythms_single", output_folder_entry.get(),
@@ -570,7 +549,7 @@ def create_gui() -> tk.Tk:
 
     # --- Frequency Analysis (FFT) Frame ---
     fft_frame = ttk.LabelFrame(analysis_frame, text="Frequency Analysis (FFT)")
-    fft_frame.grid(row=0, column=2, padx=5, pady=5, sticky="nsew")  
+    fft_frame.grid(row=0, column=2, padx=5, pady=5, sticky="nsew")  # Next column
 
     btn_fft_single = ttk.Button(fft_frame, text="fft_analysis_single",
                                 command=lambda: run_script("fft_analysis_single", output_folder_entry.get(),
@@ -588,7 +567,7 @@ def create_gui() -> tk.Tk:
 
     # --- Correlation Analysis Frame ---
     correlation_frame = ttk.LabelFrame(analysis_frame, text="Correlation Analysis")
-    correlation_frame.grid(row=1, column=0, padx=5, pady=5, sticky="nsew") 
+    correlation_frame.grid(row=1, column=0, padx=5, pady=5, sticky="nsew") # New row, below General
 
     btn_basic_correlation = ttk.Button(correlation_frame, text="basic_correlation",
                                     command=lambda: run_script("basic_correlation", output_folder_entry.get(),
@@ -603,12 +582,12 @@ def create_gui() -> tk.Tk:
                                                                         class_labels_dict, log_text,
                                                                         frame_rate_entry.get(), video_name_entry.get(),
                                                                         min_bout_duration_entry.get(), max_gap_duration_entry.get()))
-    btn_cross_correlation_single.grid(row=1, column=0, padx=5, pady=5, sticky="ew") 
+    btn_cross_correlation_single.grid(row=1, column=0, padx=5, pady=5, sticky="ew") # Stays in the same frame
     ToolTip(btn_cross_correlation_single, "Calculates time-lagged cross-correlations.")
 
     btn_cross_correlation_combine = ttk.Button(correlation_frame, text="cross_correlation_combine",
                                                command=lambda: run_cross_correlation_combine_script(output_folder_entry.get(), log_text))
-    btn_cross_correlation_combine.grid(row=2, column=0, padx=5, pady=5, sticky="ew") 
+    btn_cross_correlation_combine.grid(row=2, column=0, padx=5, pady=5, sticky="ew") # Stays in the same frame
     ToolTip(btn_cross_correlation_combine, "Combines cross-correlation results.")
 
     btn_cross_correlation_stats = ttk.Button(correlation_frame, text="cross_correlation_stats",
@@ -618,7 +597,7 @@ def create_gui() -> tk.Tk:
 
     # --- Causality Analysis Frame ---
     causality_frame = ttk.LabelFrame(analysis_frame, text="Causality Analysis")
-    causality_frame.grid(row=1, column=1, padx=5, pady=5, sticky="nsew") 
+    causality_frame.grid(row=1, column=1, padx=5, pady=5, sticky="nsew") # Next column, same row as Correlation
 
     btn_granger = ttk.Button(causality_frame, text="granger_causality",
                             command=lambda: run_script("granger_causality", output_folder_entry.get(),
@@ -638,7 +617,7 @@ def create_gui() -> tk.Tk:
 
     # --- Transition Analysis Frame ---
     transition_frame = ttk.LabelFrame(analysis_frame, text="Transition Analysis")
-    transition_frame.grid(row=1, column=2, padx=5, pady=5, sticky="nsew") 
+    transition_frame.grid(row=1, column=2, padx=5, pady=5, sticky="nsew")  # Next column
 
     btn_transition_single = ttk.Button(transition_frame, text="transition_probability_single",
                                         command=lambda: run_script("transition_probability_single", output_folder_entry.get(),
@@ -708,13 +687,13 @@ def create_gui() -> tk.Tk:
     log_text.grid(row=0, column=0, sticky="nsew")
 
     # --- Making the GUI Resizable ---
-    root.grid_rowconfigure(2, weight=1)  
+    root.grid_rowconfigure(2, weight=1)  # Analysis frame row expands
     root.grid_rowconfigure(3, weight=1)  # Log frame row expands
     root.grid_columnconfigure(0, weight=1)
     root.grid_columnconfigure(1, weight=1)
 
-    input_frame.columnconfigure(1, weight=1)  
-    # analysis_frame.columnconfigure(0, weight=1)  
+    input_frame.columnconfigure(1, weight=1)  # Input frame entries expand
+    # analysis_frame.columnconfigure(0, weight=1)  # Analysis buttons expand
     # analysis_frame.columnconfigure(1, weight=1)
     log_frame.grid_rowconfigure(0, weight=1)
     log_frame.grid_columnconfigure(0, weight=1)
@@ -779,7 +758,7 @@ def run_multi_script(script_name: str, input_folder: str, output_folder: str, lo
         messagebox.showerror("Error", f"Error running {script_name}: {e}")
         log_text.insert(tk.END, f"Error running {script_name}:\n{e.stdout}\n{e.stderr}\n")
     except FileNotFoundError:
-        messagebox.showerror("Error", f"Could not find script: {script_name}.py\nPath: {script_path}") 
+        messagebox.showerror("Error", f"Could not find script: {script_name}.py\nPath: {script_path}") #More descriptive error message
         log_text.insert(tk.END, f"Error: Could not find {script_name}.py\n")
     except Exception as e:
         messagebox.showerror("Error", f"An unexpected error occurred: {e}")
@@ -791,7 +770,7 @@ def edit_class_labels(class_labels_dict: dict, class_labels_entry: ttk.Entry):
     new_labels_str = simpledialog.askstring("Edit Class Labels", "Enter class labels as a dictionary (e.g., {0: 'Label1', 1: 'Label2'}):", initialvalue=current_labels_str)
     if new_labels_str:
         try:
-            new_labels_dict = ast.literal_eval(new_labels_str)  
+            new_labels_dict = ast.literal_eval(new_labels_str)  # Use ast.literal_eval()
             if isinstance(new_labels_dict, dict):
                 class_labels_dict.clear()
                 class_labels_dict.update(new_labels_dict)
@@ -799,7 +778,7 @@ def edit_class_labels(class_labels_dict: dict, class_labels_entry: ttk.Entry):
                 class_labels_entry.insert(0, str(class_labels_dict))
             else:
                 messagebox.showerror("Error", "Invalid input. Please enter a valid dictionary.")
-        except (ValueError, SyntaxError) as e:  
+        except (ValueError, SyntaxError) as e:  # Catch SyntaxError too
             messagebox.showerror("Error", f"Invalid input: {e}")
 
 if __name__ == '__main__':
