@@ -88,7 +88,7 @@ def analyze_ngrams_multi(input_folder, output_folder, n=2, top_n=10):
     plt.bar(ngrams, counts)
     plt.xlabel("N-gram")
     plt.ylabel("Frequency")
-    plt.title(f"Top {top_n} Combined {n}-grams")
+    plt.title(f"Top {top_n} Combined {n}-gram Animal Behavior Sequences", fontsize=16)  # Improved Title
     plt.xticks(rotation=45, ha="right")
     plt.tight_layout()
 

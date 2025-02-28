@@ -3,6 +3,8 @@ import numpy as np
 from hmmlearn import hmm
 import argparse
 import os
+import matplotlib.pyplot as plt  # Import matplotlib for visualization
+import networkx as nx  # For the state transition diagram
 
 def analyze_hmm_multi(input_folder, output_folder, n_components=2, random_state=42):
     """
@@ -17,6 +19,7 @@ def analyze_hmm_multi(input_folder, output_folder, n_components=2, random_state=
 
     all_transition_counts = {}
     all_emission_probs = {}
+    all_transition_matrices = {}  # Store transition matrices
 
     for filename in os.listdir(input_folder):
         if filename.endswith(".csv"):
@@ -74,6 +77,18 @@ def analyze_hmm_multi(input_folder, output_folder, n_components=2, random_state=
 
             state_labels = assign_state_labels(emission_probs)  # Assign labels to states
 
+             # Calculate transition matrix
+            transition_matrix = np.zeros((n_components, n_components))
+            for i in range(len(hidden_states) - 1):
+                current_state = hidden_states[i]
+                next_state = hidden_states[i + 1]
+                transition_matrix[current_state, next_state] += 1
+
+            # Normalize rows to get transition probabilities
+            row_sums = transition_matrix.sum(axis=1, keepdims=True)
+            transition_matrix = transition_matrix / row_sums
+            all_transition_matrices[video_name] = transition_matrix #Save
+
             print(f"\n--- HMM Transition Counts (Hidden States) - {video_name} ---")
             print(transition_counts)
 
@@ -84,6 +99,9 @@ def analyze_hmm_multi(input_folder, output_folder, n_components=2, random_state=
                     print(probs)
                 else:
                     print(f"State {state} ({state_labels[state]}): No emissions found in this state.")
+
+            # --- Visualization ---
+            visualize_hmm_results(video_name, emission_probs, transition_matrix, behavior_labels, state_labels, output_folder)
 
     # Combine and save results (example: CSV)
     combined_transitions_df = pd.DataFrame(all_transition_counts).fillna(0)
@@ -122,8 +140,22 @@ def analyze_hmm_multi(input_folder, output_folder, n_components=2, random_state=
     combined_transitions_df.to_csv(transitions_output_path)
     all_emissions_df.to_csv(emissions_output_path)
 
+    # Save transition matrices
+    transition_matrices_output_path = os.path.join(output_folder, "hmm_transition_matrices.csv")
+    # Prepare data for CSV export
+    data = []
+    for video, matrix in all_transition_matrices.items():
+        for i in range(n_components):
+            for j in range(n_components):
+                data.append([video, f"State {i}", f"State {j}", matrix[i, j]])
+
+    # Create DataFrame and save to CSV
+    transition_df = pd.DataFrame(data, columns=['Video', 'From State', 'To State', 'Probability'])
+    transition_df.to_csv(transition_matrices_output_path, index=False)
+
     print(f"\nCombined HMM transition counts saved to: {transitions_output_path}")
     print(f"Combined HMM emission probabilities saved to: {emissions_output_path}")
+    print(f"HMM transition matrices (probabilities) saved to: {transition_matrices_output_path}")
 
 def assign_state_labels(emission_probs): #No change
     """Assigns descriptive labels to hidden states based on emission probabilities."""
@@ -135,6 +167,63 @@ def assign_state_labels(emission_probs): #No change
         else:
             state_labels[state] = "Unused State"  # Handle states with no emissions
     return state_labels
+
+def visualize_hmm_results(video_name, emission_probs, transition_matrix, behavior_labels, state_labels, output_folder):
+    """Generates and saves visualizations for HMM results."""
+
+    # --- 1. Emission Probability Bar Charts ---
+    num_states = len(emission_probs)
+    fig, axes = plt.subplots(1, num_states, figsize=(15, 5), sharey=True)  # Adjusted figure size
+
+    for i in range(num_states):
+        ax = axes[i]
+        state_label = state_labels[i]
+        probs = emission_probs[i]
+        if not probs.empty:
+            ax.bar(probs.index, probs.values)
+            ax.set_title(f"State {i} ({state_label})", fontsize=12)
+            ax.tick_params(axis='x', rotation=45)
+            ax.set_xlabel("Behavior", fontsize=10)
+            if i == 0:
+                ax.set_ylabel("Probability", fontsize=10)  # Only label the y-axis once
+        else:
+            ax.text(0.5, 0.5, "No emissions", ha='center', va='center', fontsize=10)
+
+    fig.suptitle(f"Emission Probabilities - {video_name}", fontsize=14)  # Added overall title
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])  # Adjust layout to fit title
+    emission_chart_path = os.path.join(output_folder, f"{video_name}_emission_probs.png")
+    plt.savefig(emission_chart_path)
+    plt.close(fig)  # Close figure to free memory
+    print(f"Emission probabilities chart saved: {emission_chart_path}")
+
+    # --- 2. State Transition Diagram ---
+    G = nx.DiGraph()
+
+    # Add nodes with labels
+    for i in range(num_states):
+        state_label = state_labels[i]
+        G.add_node(f"State {i}: {state_label}")  # Use State i: Label as node name
+
+    for i in range(num_states):
+        for j in range(num_states):
+            prob = transition_matrix[i, j]
+            from_node = f"State {i}: {state_labels[i]}" #Set up label
+            to_node = f"State {j}: {state_labels[j]}" #Set up label
+            G.add_edge(from_node, to_node, weight=prob) #Update new nodes
+
+    pos = nx.circular_layout(G) #Layout
+    plt.figure(figsize=(16, 12))  # Make the figure bigger
+
+    nx.draw(G, pos, with_labels=True, node_size=3000, node_color="skyblue", font_size=8, font_weight="bold", alpha=0.7)
+    edge_labels = {(i, j): f"{data['weight']:.2f}" for i, j, data in G.edges(data=True)}
+    nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels, font_size=8)
+
+    plt.title(f"State Transition Diagram - {video_name}", fontsize=14) #Chart Title
+    plt.tight_layout()
+    transition_diagram_path = os.path.join(output_folder, f"{video_name}_transition_diagram.png")
+    plt.savefig(transition_diagram_path)
+    plt.close()
+    print(f"Transition diagram saved: {transition_diagram_path}")
 
 def main():
     parser = argparse.ArgumentParser(description="Run HMM analysis on multiple behavioral data files.")

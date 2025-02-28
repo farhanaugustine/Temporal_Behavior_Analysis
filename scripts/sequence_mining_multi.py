@@ -6,7 +6,7 @@ import os
 import networkx as nx
 import matplotlib.pyplot as plt
 
-def analyze_sequence_mining_multi(input_folder, output_folder, min_support=0.05, min_confidence=0.7):
+def analyze_sequence_mining_multi(input_folder, output_folder, min_support=0.05, min_confidence=0.9, top_n=10):
     """
     Performs sequence mining on multiple CSV files and combines/summarizes the results.
 
@@ -15,6 +15,7 @@ def analyze_sequence_mining_multi(input_folder, output_folder, min_support=0.05,
         output_folder (str): Path to the folder to save the combined results.
         min_support (float): Minimum support threshold.
         min_confidence (float): Minimum confidence threshold.
+        top_n (int): Number of top rules to select for visualization (based on confidence).
     """
 
     all_rules = []
@@ -60,24 +61,32 @@ def analyze_sequence_mining_multi(input_folder, output_folder, min_support=0.05,
     print("\n--- Combined Association Rules ---")
     print(combined_rules)
 
-    # Create a directed graph from the combined association rules
+    # Select top N rules based on confidence for visualization
+    top_rules = combined_rules.nlargest(top_n, 'confidence')
+
+    # Create a directed graph from the *top* association rules
     G = nx.DiGraph()
-    for index, row in combined_rules.iterrows():
+    for index, row in top_rules.iterrows():
         antecedents = ", ".join(row['antecedents'])
         consequents = ", ".join(row['consequents'])
         G.add_edge(antecedents, consequents, confidence=row['confidence'])
 
-    pos = nx.spring_layout(G)
-    nx.draw(G, pos, with_labels=True, node_size=3000, node_color="skyblue", font_size=10, font_weight="bold")
+    # Improve graph visualization
+    pos = nx.spring_layout(G, k=0.5, iterations=50)  # Adjust k and iterations
+    plt.figure(figsize=(20, 12))  # Increase figure size
+
+    nx.draw(G, pos, with_labels=True, node_size=2000, node_color="skyblue",
+            font_size=12, font_weight="bold", alpha=0.7) 
 
     edge_labels = nx.get_edge_attributes(G, 'confidence')
-    nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels)
+    nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels, font_size=10) 
 
-    plt.title("Combined Association Rules Graph")
+    plt.title(f"Top {top_n} Behavioral Association Rules (Confidence >= {min_confidence}) Visualized as a Network Graph Across Multiple Videos", fontsize=16) # use f-string
     plt.tight_layout()
     output_chart_path = os.path.join(output_folder, "combined_association_rules_graph.png")
     plt.savefig(output_chart_path)
-    plt.show() #Show graph too.
+    plt.show()  # Show graph too.
+
 
     print(f"Combined association rules graph saved as: {output_chart_path}")
 
@@ -93,10 +102,11 @@ def main():
     parser.add_argument("--output_folder", required=True, help="Path to the folder to save the combined results.")
     parser.add_argument("--min_support", type=float, default=0.05, help="Minimum support threshold (default: 0.05).")
     parser.add_argument("--min_confidence", type=float, default=0.7, help="Minimum confidence threshold (default: 0.7).")
+    parser.add_argument("--top_n", type=int, default=10, help="Number of top rules to visualize (default: 10).") 
 
     args = parser.parse_args()
 
-    analyze_sequence_mining_multi(args.input_folder, args.output_folder, args.min_support, args.min_confidence)
+    analyze_sequence_mining_multi(args.input_folder, args.output_folder, args.min_support, args.min_confidence, args.top_n) 
 
 if __name__ == "__main__":
     main()
