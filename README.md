@@ -18,7 +18,7 @@ This project provides a user-friendly graphical interface (GUI) for analyzing be
    	  cd Temporal_Behavior_Analysis
  	  conda env create -f environment.yml
  	  conda activate YOLO
- 	  python GUI.py
+ 	  python GUI_v2.py
 	```      
     *   **Option 2: Using the Executable**:
         *   If you received a pre-built executable (e.g., `BehavioralAnalysisTool.exe` on Windows, or an application bundle on macOS):
@@ -35,7 +35,7 @@ This project provides a user-friendly graphical interface (GUI) for analyzing be
         *   Download the project files (including `GUI.py` and the `scripts` folder).
         *   Open a terminal or command prompt, navigate to the directory containing `GUI.py`, and run:
             ```bash
-            python GUI.py
+            python GUI_v2.py
             ```
 
 2.  **Launch the Application:** Run the `GUI.py` script (or the standalone executable, if you created one).
@@ -79,7 +79,7 @@ This project provides a user-friendly graphical interface (GUI) for analyzing be
     *   **total_time_spent:** Calculates the total time spent on each behavior.
      *  **granger_causality:** Performs Granger Causality Test.
 
-7.  **View Results:** The output files (Excel files, plots, etc.) will be saved in subfolders within the main "YOLO Output Folder" you selected.  The log window will also show where the files are saved.
+7.  **View Results:** The output files (Excel files, plots, etc.) will be saved within the main "YOLO Output Folder" you selected.  The log window will also show where the files are saved.
 
 # Advanced Usage
 
@@ -119,11 +119,11 @@ python scripts/general_analysis.py --output_folder /path/to/yolo/output --class_
 
 * sequence_mining.py: Runs the sequence_mining.py script for sequence analysis.
 
-* HMMs_multi.py: Runs the HMMs_multi.py script for multi-video sequence analysis.
+* HMMs_multi.py: Runs the HMMs_multi.py script for multi-video sequence analysis. [**Requires a folder named "HMMs_multi" with all `general_analysis.py` output CSV files be placed in this folder**]
 
-* n_gram_analysis_multi.py: Runs the n_gram_analysis_multi.py script for multi-video sequence analysis.
+* n_gram_analysis_multi.py: Runs the n_gram_analysis_multi.py script for multi-video sequence analysis. [**Requires a folder named "n-gram_analysis" with all `general_analysis.py` output CSV files be placed in this folder**]
 
-* sequence_mining_multi.py: Runs the sequence_mining_multi.py script for multi-video sequence analysis.
+* sequence_mining_multi.py: Runs the sequence_mining_multi.py script for multi-video sequence analysis. [**Requires a folder named "sequence_mining" with all `general_analysis.py` output CSV files be placed in this folder**]
 
 ## Scripts and their Biological Significance
 
