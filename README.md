@@ -1,10 +1,10 @@
 # Behavioral Analysis Toolkit
 
-This project provides a user-friendly graphical interface (GUI) for analyzing behavioral data extracted from video using YOLOv8 or YOLOv11 object detection. It allows you to process raw YOLOv8 output, define "bouts" of behavior, and perform various analyses, including transition probabilities, cross-correlations, FFT analysis, rhythm detection, basic correlations, and total time spent analysis.
+This project provides a user-friendly graphical interface (GUI) for analyzing behavioral data extracted from video using YOLOv8 or YOLOv11 object detection. It allows you to process raw YOLOv8 or YOLOv11 output, define "bouts" of behavior, and perform various analyses, including transition probabilities, cross-correlations, FFT analysis, rhythm detection, basic correlations, and total time spent analysis.
 
 * **Author:** Farhan Augustine
 * **Affiliation:** University of Maryland Baltimore County (UMBC)
-
+* For a quick start Guide on YOLO Model Training, please see the markdown file [instructions](https://github.com/farhanaugustine/Temporal_Behavior_Analysis/blob/main/YOLOv11_Animal_Behavior_Model_Training_Guide.MD)
 # Getting Started (GUI)
 <img width="725" alt="image" src="https://github.com/user-attachments/assets/54f7596b-2b20-4c93-8380-eb9e5bc2dc19" />
 
