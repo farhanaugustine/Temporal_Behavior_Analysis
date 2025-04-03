@@ -1,3 +1,15 @@
+<div style="display: flex; align-items: middle; gap: 20px;"> 
+  <a href="https://papers.ssrn.com/sol3/papers.cfm?abstract_id=5181897" target="_blank" rel="noopener noreferrer">
+    <img 
+	src="https://github.com/user-attachments/assets/2c247b73-f499-4ce0-9186-02bf151d9da5" 
+     	alt="Clickable animation linking to abstract" 
+        style="height: 60px; width: auto; vertical-align: middle;"
+    /> 
+    </a>
+</div>
+
+👆 *Click for Paper*
+
 # Behavioral Analysis Toolkit
 
 This project provides a user-friendly graphical interface (GUI) for analyzing behavioral data extracted from video using YOLOv8 or YOLOv11 object detection. It allows you to process raw YOLOv8 or YOLOv11 output, define "bouts" of behavior, and perform various analyses, including transition probabilities, cross-correlations, FFT analysis, rhythm detection, basic correlations, and total time spent analysis.
