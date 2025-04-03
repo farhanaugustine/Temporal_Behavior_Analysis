@@ -1,7 +1,6 @@
 import os
 import numpy as np
 import pandas as pd
-import argparse
 import matplotlib.pyplot as plt
 from scipy.stats import kruskal
 
@@ -11,6 +10,8 @@ def create_combined_fft_analysis(all_data, output_folder):
     frequency_groups = []
     power_groups = []
     video_names = []
+
+    output_messages = [] # List to collect messages
 
     for video, data in all_data.items():
         video_names.append(video)
@@ -26,23 +27,31 @@ def create_combined_fft_analysis(all_data, output_folder):
         try:
             kruskal_frequency_results = kruskal(*frequency_groups)
         except ValueError as e:
-            print(f"Error in Kruskal-Wallis (frequency): {e}")
+            message_kruskal_freq_error = f"Error in Kruskal-Wallis (frequency): {e}"
+            print(message_kruskal_freq_error)
+            output_messages.append(message_kruskal_freq_error)
     else:
-        print("Insufficient or non-variable data for Kruskal-Wallis test on frequency.")
+        message_insufficient_freq_data = "Insufficient or non-variable data for Kruskal-Wallis test on frequency."
+        print(message_insufficient_freq_data)
+        output_messages.append(message_insufficient_freq_data)
 
     if len(power_groups) > 1 and all(len(group) > 0 for group in power_groups) and any(len(set(group)) > 1 for group in power_groups):
         try:
             kruskal_power_results = kruskal(*power_groups)
         except ValueError as e:
-            print(f"Error in Kruskal-Wallis (power): {e}")
+            message_kruskal_power_error = f"Error in Kruskal-Wallis (power): {e}"
+            print(message_kruskal_power_error)
+            output_messages.append(message_kruskal_power_error)
     else:
-        print("Insufficient or non-variable data for Kruskal-Wallis test on power.")
+        message_insufficient_power_data = "Insufficient or non-variable data for Kruskal-Wallis test on power."
+        print(message_insufficient_power_data)
+        output_messages.append(message_insufficient_power_data)
+
     # --- Plotting (Combined Bar Plots)---
-    #Prepare Data for Plotting
     freq_means = [np.mean(group) if len(group) > 0 else np.nan for group in frequency_groups]
     power_means = [np.mean(group) if len(group) > 0 else np.nan for group in power_groups]
 
-    # Frequency
+    # Frequency plot
     plt.figure(figsize=(12, 6))
     plt.bar(video_names, freq_means, edgecolor='black', alpha=0.7, color='skyblue')
     plt.xticks(rotation=45, ha='right')
@@ -56,12 +65,15 @@ def create_combined_fft_analysis(all_data, output_folder):
                  transform=plt.gca().transAxes, verticalalignment='top', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
 
     plt.tight_layout()
-    output_path = os.path.join(output_folder, "combined_frequency_plot.png")
-    plt.savefig(output_path)
+    frequency_plot_path = os.path.join(output_folder, "combined_frequency_plot.png")
+    plt.savefig(frequency_plot_path)
     plt.close()
-    print("Combined frequency plot saved.")
+    message_freq_plot_saved = "Combined frequency plot saved."
+    print(message_freq_plot_saved)
+    output_messages.append(message_freq_plot_saved)
 
-    # Power
+
+    # Power plot
     plt.figure(figsize=(12, 6))
     plt.bar(video_names, power_means, edgecolor='black', alpha=0.7, color='lightcoral')
     plt.xticks(rotation=45, ha='right')
@@ -75,13 +87,16 @@ def create_combined_fft_analysis(all_data, output_folder):
                  transform=plt.gca().transAxes, verticalalignment='top', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
 
     plt.tight_layout()
-    output_path = os.path.join(output_folder, "combined_power_plot.png")
-    plt.savefig(output_path)
+    power_plot_path = os.path.join(output_folder, "combined_power_plot.png")
+    plt.savefig(power_plot_path)
     plt.close()
-    print("Combined power plot saved.")
+    message_power_plot_saved = "Combined power plot saved."
+    print(message_power_plot_saved)
+    output_messages.append(message_power_plot_saved)
 
     # --- Statistical Summary ---
-    with open(os.path.join(output_folder, "statistical_summary.txt"), "w") as f:
+    summary_file_path = os.path.join(output_folder, "statistical_summary.txt")
+    with open(summary_file_path, "w") as f:
         f.write("Statistical Summary (All Behaviors Combined)\n\n")
 
         f.write("Dominant Frequency Analysis:\n")
@@ -108,7 +123,7 @@ def create_combined_fft_analysis(all_data, output_folder):
         else:
             f.write("  Kruskal-Wallis Test: Not performed (insufficient or invalid data).\n")
 
-       # Descriptive stats
+        # Descriptive stats
         f.write("\nDescriptive Statistics (Dominant Frequency):\n")
         freq_all = [val for sublist in frequency_groups for val in sublist]  # Flatten the list
         if freq_all:  # Check if not empty
@@ -122,19 +137,27 @@ def create_combined_fft_analysis(all_data, output_folder):
             f.write(pd.Series(power_all).describe().to_string() + "\n")
         else:
             f.write("No power data available.\n")
+    message_stats_saved = f"Statistical summary saved to: {summary_file_path}"
+    print(message_stats_saved)
+    output_messages.append(message_stats_saved)
 
-def main():
-    parser = argparse.ArgumentParser(description="Perform aggregated FFT analysis across multiple videos.")
-    parser.add_argument("--fft_folder", required=True, help="Path to the folder containing FFT Excel files.")
-    parser.add_argument("--output_folder", required=True, help="Path to the output folder for aggregated results.")
-    args = parser.parse_args()
+    return output_messages # Return all messages
 
-    os.makedirs(args.output_folder, exist_ok=True)
+
+def main_analysis(fft_folder, output_folder): # Keyword arguments
+    """Main function to run aggregated FFT analysis across multiple videos."""
+
+    if not os.path.isdir(fft_folder):
+        return f"Error: FFT folder not found: {fft_folder}" # Return error string
+
+    os.makedirs(output_folder, exist_ok=True)
 
     all_data = {}
-    for filename in os.listdir(args.fft_folder):
+    output_messages = [] # Collect messages from file processing
+
+    for filename in os.listdir(fft_folder):
         if filename.endswith("_fft_analysis.xlsx"):
-            filepath = os.path.join(args.fft_folder, filename)
+            filepath = os.path.join(fft_folder, filename)
             try:
                 df = pd.read_excel(filepath)
                 video_name = filename.replace("_fft_analysis.xlsx", "")
@@ -150,10 +173,33 @@ def main():
                         if pd.notna(power):
                             all_data[video_name]['powers'].append(power)
             except (FileNotFoundError, Exception) as e:  # Catch FileNotFoundError explicitly
-                print(f"Error processing {filename}: {e}")
+                message_file_error = f"Error processing {filename}: {e}"
+                print(message_file_error)
+                output_messages.append(message_file_error)
                 continue
 
-    create_combined_fft_analysis(all_data, args.output_folder)
+    analysis_messages = create_combined_fft_analysis(all_data, output_folder) # Get messages from analysis
+    output_messages.extend(analysis_messages) # Extend main messages list
+
+    return "\n".join(output_messages) # Return combined messages
+
 
 if __name__ == "__main__":
-    main()
+    # Example for direct testing:
+    fft_folder_path = "path/to/your/fft_excel_folder" # Replace
+    output_folder_path = "path/to/your/output_folder" # Replace
+
+    class Args: # Dummy Args class for testing (not needed for GUI)
+        def __init__(self, fft_folder, output_folder):
+            self.fft_folder = fft_folder
+            self.output_folder = output_folder
+
+    test_args = Args(fft_folder_path, output_folder_path)
+
+    # Simulate command-line execution (original main) - not needed for GUI
+    # main(test_args)
+
+    # Direct call to main_analysis for testing:
+    output_message = main_analysis(fft_folder=test_args.fft_folder, 
+                                  output_folder=test_args.output_folder)
+    print(output_message) # Print output for direct test

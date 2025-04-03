@@ -1,6 +1,5 @@
 import os
 import pandas as pd
-import argparse
 import itertools
 from collections import defaultdict
 import matplotlib.pyplot as plt
@@ -13,11 +12,9 @@ def calculate_basic_correlations(csv_file_path, class_labels):
     try:
         df = pd.read_csv(csv_file_path)
     except (FileNotFoundError, pd.errors.EmptyDataError):
-        print(f"Error: CSV file not found or empty: {csv_file_path}")
-        return None
+        return f"Error: CSV file not found or empty: {csv_file_path}" # Changed to return error string
     except Exception as e:
-        print(f"Error reading CSV: {e}")
-        return None
+        return f"Error reading CSV: {e}" # Changed to return error string
 
     bout_starts = defaultdict(lambda: [])
 
@@ -31,11 +28,9 @@ def calculate_basic_correlations(csv_file_path, class_labels):
     for (class1, class2) in itertools.combinations(class_labels.values(), 2):
         indices1 = set(bout_starts[class1])
         indices2 = set(bout_starts[class2])
-        # Convert boolean series to int for correlation calculation
         serie1 = pd.Series([i in indices1 for i in range(len(df))]).astype(int)
         serie2 = pd.Series([i in indices2 for i in range(len(df))]).astype(int)
-        # Use Spearman's rank correlation
-        corr_coeff, p_value =  stats.spearmanr(serie1, serie2)  # Get both coefficient and p-value
+        corr_coeff, p_value =  stats.spearmanr(serie1, serie2)
         correlations[(class1, class2)] = corr_coeff
 
     return correlations
@@ -50,25 +45,22 @@ def save_correlations_to_excel(correlations, output_folder, video_name):
                 rows.append({"Behavior 1": class1, "Behavior 2": class2, "Correlation": corr})
             df_correlations = pd.DataFrame(rows)
             df_correlations.to_excel(excel_path, sheet_name="Basic Correlations", index=False)
-            print(f"Basic correlations saved to: {excel_path}")
+            return f"Basic correlations saved to: {excel_path}" # Changed to return success string
         except Exception as e:
-             print(f"Error writing to excel file: {e}")
+             return f"Error writing to excel file: {e}" # Changed to return error string
+    return "No correlations to save." # Return string if no correlations
+
 
 def plot_correlations(correlations, output_folder, video_name):
     """Generates a heatmap of the correlation matrix."""
     if not correlations:
-        print("No correlation data to plot.")
-        return
+        return "No correlation data to plot." # Changed to return string
 
-    # Convert the correlations dictionary to a DataFrame for plotting
     df_corr = pd.DataFrame.from_dict(correlations, orient='index', columns=['Correlation'])
-    df_corr.index.name = 'Behavior Pair'  # Single name for the index
-    df_corr = df_corr.reset_index() #Reset index
+    df_corr.index.name = 'Behavior Pair'
+    df_corr = df_corr.reset_index()
 
-    # Create a pivot table for the heatmap
-    # Use list comprehension for a cleaner way to get behaviors
     behaviors = sorted(list(set(b for pair in correlations for b in pair)))
-    # Build the pivot table directly, handling missing pairs.
     data = {}
     for b1 in behaviors:
         data[b1] = {}
@@ -78,54 +70,72 @@ def plot_correlations(correlations, output_folder, video_name):
             elif (b2, b1) in correlations:
                 data[b1][b2] = correlations[(b2, b1)]
             else:
-                data[b1][b2] = 0  # Or np.nan if you prefer to represent missing data as NaN
+                data[b1][b2] = 0
 
     df_pivot = pd.DataFrame(data).loc[behaviors, behaviors]
 
-    # Plot the heatmap
     plt.figure(figsize=(8, 6))
     sns.heatmap(df_pivot, annot=True, fmt=".2f", cmap="coolwarm", center=0,
                 linewidths=.5, cbar_kws={'label': 'Correlation Coefficient'})
     plt.title(f"Correlation Matrix of Behaviors - {video_name}")
     plt.tight_layout()
 
-    # Save the plot
     output_path = os.path.join(output_folder, f"{video_name}_correlation_heatmap.png")
     plt.savefig(output_path)
     plt.close()
-    print(f"Correlation heatmap saved to: {output_path}")
+    return f"Correlation heatmap saved to: {output_path}" # Changed to return success string
 
 
+def main_analysis(output_folder, class_labels, frame_rate, video_name): # Modified to main_analysis and keyword args
+    """Main analysis function to calculate and save basic correlations."""
 
-def main():
-    """Main function to parse arguments and run analysis."""
-    parser = argparse.ArgumentParser(description="Calculate basic correlations between behaviors.")
-    parser.add_argument("--output_folder", required=True, help="Path to the output folder.")
-    parser.add_argument("--class_labels", required=True, help="Class labels dictionary (as a string).")
-    parser.add_argument("--frame_rate", required = True, type = int, help = "Frame Rate of the video") #Not used, but we will keep it
-    parser.add_argument("--video_name", required=True, help="Video name.")
-    args = parser.parse_args()
-
-    csv_output_folder = os.path.join(args.output_folder, "csv_output")
+    csv_output_folder = os.path.join(output_folder, "csv_output")
     os.makedirs(csv_output_folder, exist_ok=True)
 
-    try:
-        class_labels_dict = ast.literal_eval(args.class_labels)  # Use ast.literal_eval
-        if not isinstance(class_labels_dict, dict):
-            raise ValueError("Class labels must be a dictionary.")
-    except (ValueError, SyntaxError) as e:
-        print(f"Error: Invalid class labels: {e}")
-        return
+    if not isinstance(class_labels, dict): # Class labels should already be dict
+        return "Error: Class labels must be a dictionary." # Return error string
 
-    csv_file_path = os.path.join(csv_output_folder, f"{args.video_name}_analysis.csv")
-    if os.path.exists(csv_file_path):
-       correlation_results = calculate_basic_correlations(csv_file_path, class_labels_dict)
-       save_correlations_to_excel(correlation_results, args.output_folder, args.video_name)
-       if correlation_results:  # Only plot if there are results
-            plot_correlations(correlation_results, args.output_folder, args.video_name)
-    else:
-        print(f"Error: {csv_file_path} not found.  Run general_analysis.py first.")
+    csv_file_path = os.path.join(csv_output_folder, f"{video_name}_analysis.csv")
+    if not os.path.exists(csv_file_path):
+        return f"Error: {csv_file_path} not found. Run general_analysis.py first." # Return error string
+
+    correlation_results = calculate_basic_correlations(csv_file_path, class_labels)
+    if isinstance(correlation_results, str): # Check if calculate_basic_correlations returned an error string
+        return correlation_results # Return the error string
+
+    excel_output_msg = save_correlations_to_excel(correlation_results, output_folder, video_name)
+    heatmap_output_msg = plot_correlations(correlation_results, output_folder, video_name)
+
+    output_messages = [msg for msg in [excel_output_msg, heatmap_output_msg] if msg is not None] # Collect non-None messages
+    return "\n".join(output_messages) if output_messages else "Basic correlation analysis completed. No specific output messages."
+
 
 if __name__ == "__main__":
     from scipy import stats 
-    main()
+    # For direct execution (if needed for testing, though GUI will use main_analysis)
+    # Example of how to run it directly with hardcoded arguments for testing:
+    output_folder = "path/to/your/output_folder" # Replace with a real path for testing
+    class_labels_dict = {0: "Exploration", 1: "Grooming", 2: "Jump", 3: "Wall-Rearing", 4: "Rear"}
+    frame_rate = 30
+    video_name = "your_video_name" # Replace with a real video name
+    
+    # Create dummy arguments (similar to argparse args for testing)
+    class Args:
+        def __init__(self, output_folder, class_labels, frame_rate, video_name):
+            self.output_folder = output_folder
+            self.class_labels = str(class_labels) #Pass as string for direct test
+            self.frame_rate = frame_rate
+            self.video_name = video_name
+
+    test_args = Args(output_folder, class_labels_dict, frame_rate, video_name)
+
+    # Simulate command-line execution for direct testing of main (now main_analysis)
+    # You'd parse args like this if still using command line, but GUI will call main_analysis directly
+    # main(test_args) # Original main used command line args
+    
+    # Instead, for direct testing of main_analysis, call it with keyword arguments:
+    output_message = main_analysis(output_folder=test_args.output_folder, 
+                                  class_labels=class_labels_dict, # Pass dict directly
+                                  frame_rate=test_args.frame_rate, 
+                                  video_name=test_args.video_name)
+    print(output_message) # Print output message for direct test

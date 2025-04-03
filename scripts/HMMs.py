@@ -1,32 +1,23 @@
 import pandas as pd
 import numpy as np
 from hmmlearn import hmm  # Requires: pip install hmmlearn
-import argparse
-
-def analyze_hmm(csv_file_path, n_components=2, random_state=42):
+import io 
+import os
+def analyze_hmm(csv_file_path, n_components=5, random_state=42):
     """
     Analyzes behavior sequences using a Hidden Markov Model (HMM).
-
-    Args:
-        csv_file_path (str): Path to the CSV file containing the behavior data.
-                             CSV should have 'Class Label' column.
-        n_components (int): Number of hidden states in the HMM.
-        random_state (int): Random seed for reproducibility.
     """
     try:
         df = pd.read_csv(csv_file_path)
     except FileNotFoundError:
-        print(f"Error: CSV file not found: {csv_file_path}")
-        return
+        return f"Error: CSV file not found: {csv_file_path}" # Return error string
     except Exception as e:
-        print(f"Error reading CSV: {e}")
-        return
+        return f"Error reading CSV: {e}" # Return error string
 
     # Convert behavior labels to numerical values
     behavior_labels = df['Class Label'].unique()
     label_map = {label: i for i, label in enumerate(behavior_labels)}
     numerical_data = df['Class Label'].map(label_map).values.reshape(-1, 1)  # Reshape for HMM
-    reverse_label_map = {i: label for label, i in label_map.items()} #For reverse look up, not used in this part yet but will be helpful for future
 
     # Build and fit the HMM
     model = hmm.GaussianHMM(n_components=n_components, covariance_type="full", random_state=random_state)
@@ -35,35 +26,41 @@ def analyze_hmm(csv_file_path, n_components=2, random_state=42):
     # Predict hidden states
     hidden_states = model.predict(numerical_data)
 
-    # Analyze state transitions, using reverse mapping to be more descriptive
+    # Analyze state transitions
     transitions = []
     for i in range(1, len(hidden_states)):
         transitions.append((hidden_states[i - 1], hidden_states[i]))
 
-    #Count transitions and map the transitions
     transition_counts = pd.Series(transitions).value_counts()
-    transition_counts.index = transition_counts.index.map(lambda x: (f"State {x[0]}", f"State {x[1]}")) #Changed
-    print("\n--- HMM Transition Counts (Hidden States) ---")
-    print(transition_counts)
+    transition_counts.index = transition_counts.index.map(lambda x: (f"State {x[0]}", f"State {x[1]}"))
 
     # Analyze emissions
     emission_probs = {}
     for state in range(n_components):
         state_indices = np.where(hidden_states == state)[0]
         emitted_behaviors = df['Class Label'].iloc[state_indices].tolist()
-
         behavior_counts = pd.Series(emitted_behaviors).value_counts(normalize=True)
         emission_probs[state] = behavior_counts
 
-    print("\n--- Emission Probabilities (Behavior | Hidden State) ---")
     state_labels = assign_state_labels(emission_probs)  # Assign labels
 
+    # Capture print output
+    output_buffer = io.StringIO()
+    
+    output_buffer.write("\n--- HMM Transition Counts (Hidden States) ---\n")
+    output_buffer.write(transition_counts.to_string())
+    output_buffer.write("\n\n--- Emission Probabilities (Behavior | Hidden State) ---\n")
     for state, probs in emission_probs.items():
-      if not probs.empty:  # Handle states with no emissions
-        print(f"State {state} ({state_labels[state]}):")  # State Label
-        print(probs)
-      else:
-        print(f"State {state} ({state_labels[state]}): No emissions found in this state.")
+        output_buffer.write(f"State {state} ({state_labels[state]}):\n") # State Label
+        if not probs.empty:
+            output_buffer.write(probs.to_string() + "\n")
+        else:
+            output_buffer.write("No emissions found in this state.\n")
+
+    output_string = output_buffer.getvalue()
+    output_buffer.close()
+    return None, output_string # Return None for error, and output string
+
 
 def assign_state_labels(emission_probs):
     """Assigns descriptive labels to hidden states based on emission probabilities."""
@@ -76,15 +73,39 @@ def assign_state_labels(emission_probs):
             state_labels[state] = "Unused State"  # Handle states with no emissions
     return state_labels
 
-def main():
-    parser = argparse.ArgumentParser(description="Run HMM analysis on behavioral data.")
-    parser.add_argument("--csv_file", required=True, help="Path to the CSV file containing the behavior data.")
-    parser.add_argument("--n_components", type=int, default=2, help="Number of hidden states in the HMM (default: 2).")
-    parser.add_argument("--random_state", type=int, default=42, help="Random seed for reproducibility (default: 42).")
 
-    args = parser.parse_args()
+def main_analysis(csv_file, n_components=5, random_state=42): # Keyword args with defaults
+    """Main function to run HMM analysis."""
 
-    analyze_hmm(args.csv_file, n_components=args.n_components, random_state=args.random_state)
+    if not os.path.exists(csv_file):
+        return f"Error: CSV file not found: {csv_file}" # Error string
+
+    error_hmm, analysis_output = analyze_hmm(csv_file, n_components, random_state) # Get potential error and output
+    if error_hmm: # If analyze_hmm returned an error string
+        return error_hmm # Return error string to GUI
+
+    return analysis_output # Return analysis output string
+
 
 if __name__ == "__main__":
-    main()
+    # Example for direct testing:
+    csv_file_path_test = "path/to/your/csv_output/your_video_name_analysis.csv" # Replace
+    n_components_test = 3
+    random_state_test = 0
+
+    class Args: # Dummy Args class for testing (not needed for GUI)
+        def __init__(self, csv_file, n_components, random_state):
+            self.csv_file = csv_file
+            self.n_components = n_components
+            self.random_state = random_state
+
+    test_args = Args(csv_file_path_test, n_components_test, random_state_test)
+
+    # Simulate command-line execution (original main) - not needed for GUI
+    # main(test_args)
+
+    # Direct call to main_analysis for testing:
+    output_message = main_analysis(csv_file=test_args.csv_file, 
+                                  n_components=test_args.n_components,
+                                  random_state=test_args.random_state)
+    print(output_message) # Print output for direct test

@@ -1,28 +1,19 @@
 import os
 import pandas as pd
-import argparse
 import itertools
-import ast
+import ast 
+import argparse
 import numpy as np
 from collections import defaultdict
-import matplotlib.pyplot as plt  # Import for plotting (install if needed)
-from sklearn.preprocessing import LabelEncoder  # Keep for the LabelEncoder
+import matplotlib.pyplot as plt  
+from sklearn.preprocessing import LabelEncoder  
+import io # Import io for capturing print output
+
 
 def calculate_transfer_entropy_no_lib(source, target, k=1, conditioning=None, laplace_smoothing=0.0):
     """
     Calculates transfer entropy from source to target WITHOUT using pyinform.
-
-    Args:
-        source (np.ndarray): Source time series (integer encoded).
-        target (np.ndarray): Target time series (integer encoded).
-        k (int): Embedding dimension (length of past history).
-        conditioning (np.ndarray, optional): Conditioning variables (2D array). Defaults to None.
-        laplace_smoothing (float): Laplace smoothing parameter to avoid zero probabilities.
-
-    Returns:
-        float: Transfer entropy value.
     """
-
     n = len(source)
     if len(target) != n:
         raise ValueError("Source and target series must have the same length.")
@@ -30,244 +21,262 @@ def calculate_transfer_entropy_no_lib(source, target, k=1, conditioning=None, la
     if n <= k:
         return 0.0  # Not enough data
 
-    # Create dictionaries to store counts of state transitions.  We use defaultdict
-    # because it automatically creates entries if they don't exist.
-    joint_counts = defaultdict(int)  # Counts P(target(t+1) | target(t:t-k+1), source(t:t-k+1), conditioning...)
-    target_counts = defaultdict(int) # Counts P(target(t+1) | target(t:t-k+1), conditioning...)
+    joint_counts = defaultdict(int)  
+    target_counts = defaultdict(int) 
 
-    # Iterate through the time series to count state transitions
-    for t in range(k, n - 1):  # Start at k to have enough history; end at n-1 to have t+1
+    for t in range(k, n - 1):  # Start at k; end at n-1
 
-        # Create the state vectors (histories)
         source_past = tuple(source[t-k:t])
         target_past = tuple(target[t-k:t])
 
-        # Handle conditioning variables
         if conditioning is not None:
-            conditioning_past = tuple(conditioning[t-k:t, :].flatten()) #Flatten the conditioning variables
+            conditioning_past = tuple(conditioning[t-k:t, :].flatten()) 
         else:
             conditioning_past = ()  # Empty tuple if no conditioning
 
-        # Construct the joint state (past and future)
         joint_state = (target[t+1], target_past, source_past, conditioning_past)
-        target_state = (target[t+1], target_past, conditioning_past) # State without source
-        #PRINT
-        #print(f"Joint state {joint_state}")
+        target_state = (target[t+1], target_past, conditioning_past) 
 
-        # Increment the counts
         joint_counts[joint_state] += 1
         target_counts[target_state] += 1
 
-    # Calculate probabilities and KL divergence
     te = 0.0
     for joint_state, joint_count in joint_counts.items():
-        # Extract components of the joint state
         target_future, target_past, source_past, conditioning_past = joint_state
 
-        # Calculate probabilities
-        #p_joint = joint_count / n # Normalize counts by the number of steps
-        #Find the number of times the target state was seen
         target_state = (target_future, target_past, conditioning_past)
         target_count = target_counts[target_state]
 
-        #p_target = target_count / n
-
-        #KL divergence is only calculated if p_target is non-zero
-        #if p_target > 0:
-            # Find the number of times the past history was seen to normalize
         past_state = (target_past, conditioning_past)
         num_seen_joint = sum(1 for js in joint_counts if js[1:] == (target_past, source_past, conditioning_past))
         num_seen_target = sum(1 for ts in target_counts if ts[1:] == (target_past, conditioning_past))
-        #PRINT
-        #print(f"Target future, target past, source past and conditioning past: {target_future}, {target_past}, {source_past} and {conditioning_past}")
-        #print(f"NUm Seen target {num_seen_target}")
 
         if num_seen_joint > 0 and num_seen_target > 0:
           p_joint = (joint_count + laplace_smoothing) / (num_seen_joint + laplace_smoothing * 2)
           p_target = (target_count + laplace_smoothing) / (num_seen_target + laplace_smoothing * 2)
-          #print(f"Pjoint: {p_joint} P target: {p_target}")
           te += (joint_count / n) * np.log(p_joint / p_target)
     return te
+
 
 def calculate_transfer_entropy(csv_file_path, class_labels, max_lag_frames=150, k=3, laplace_smoothing=0.0):
     """Calculates (conditional) transfer entropy."""
     try:
         df = pd.read_csv(csv_file_path)
     except (FileNotFoundError, pd.errors.EmptyDataError):
-        print(f"Error: CSV file not found or empty: {csv_file_path}")
-        return None
+        return f"Error: CSV file not found or empty: {csv_file_path}", None # Return error string
     except Exception as e:
-        print(f"Error reading CSV: {e}")
-        return None
+        return f"Error reading CSV: {e}", None # Return error string
 
-    # 1. Prepare the data: Convert to integer time series.
     all_series = {}
     for class_label in class_labels.values():
-        # Create the binary series (1 if behavior is present, 0 otherwise)
         all_series[class_label] = pd.Series([1 if label == class_label else 0 for label in df['Class Label']])
 
-    # 2. Label Encode: This is necessary if the values are string labels.
     combined_series = pd.concat(all_series.values()).astype('category')
     encoder = LabelEncoder().fit(combined_series)
     for label, series in all_series.items():
-        all_series[label] = encoder.transform(series).astype(np.int32) # NOW it's a NumPy array and it's integers!
+        all_series[label] = encoder.transform(series).astype(np.int32) # NumPy array, integers
 
     results = {}
 
-    # 3. Iterate through all PAIRS of behaviors.
     for (class1, class2) in itertools.product(class_labels.values(), repeat=2):
         if class1 == class2:
-            continue  # Skip if source and target are the same
+            continue  # Skip same source and target
 
-        # 4. Calculate Conditional Transfer Entropy.
         source = all_series[class1]
         target = all_series[class2]
 
-        # Create the conditioning variables array.
-        conditioning_vars = []
+        conditioning_vars = [] # Conditioning variables array
         for label in class_labels.values():
             if label != class1 and label != class2:
-                conditioning_vars.append(all_series[label])  # Append the NumPy array
+                conditioning_vars.append(all_series[label])  
 
-        # Stack the conditioning variables into a 2D array, or set to None if empty
         if conditioning_vars:
             conditioning_vars = np.column_stack(conditioning_vars)
         else:
              conditioning_vars = None
-        #PRINT
-        #print("Source shape and data:", source.shape, source)
-        #print("Target shape and data:", target.shape, target)
-        #print("K and Laplace smoothing", k, laplace_smoothing)
-        #print("Conditioning shape and data", conditioning_vars.shape if conditioning_vars is not None else None, conditioning_vars)
 
         try:
-
             te = calculate_transfer_entropy_no_lib(source, target, k, conditioning_vars, laplace_smoothing)
-            #print(f"TE from {class1} to {class2}: {te:.4f}")  # Debugging print
-
         except Exception as e:
-            print(f"Error calculating TE from {class1} to {class2}: {e}")
-            te = None
-
+            error_message = f"Error calculating TE from {class1} to {class2}: {e}"
+            print(error_message)
+            return error_message, None # Return error string, and None for results
         results[(class1, class2)] = te
 
-    return results
+    return None, results # Return None for error, and results
+
 
 def save_te_to_excel(te_results, output_folder, video_name, k):
-    """Saves transfer entropy results to an Excel file."""
+    """Saves transfer entropy results to Excel file."""
     if te_results:
-        excel_path = os.path.join(output_folder, f"{video_name}_transfer_entropy_k{k}.xlsx")  # Include k in filename
+        excel_path = os.path.join(output_folder, f"{video_name}_transfer_entropy_k{k}.xlsx")  # k in filename
         try:
             df_te = pd.DataFrame([{"Source Behavior": c1, "Target Behavior": c2, "Transfer Entropy": te}
                                   for (c1, c2), te in te_results.items()])
             df_te.to_excel(excel_path, sheet_name="Transfer Entropy", index=False)
-            print(f"Transfer entropy results saved to: {excel_path}")
+            return f"Transfer entropy results saved to: {excel_path}" # Return success message
         except Exception as e:
-            print(f"Error writing to Excel file: {e}")
+             return f"Error writing to Excel file: {e}" # Return error message
+    return "No transfer entropy data to save." # Return if no data
 
-def main():
-    parser = argparse.ArgumentParser(description="Perform Transfer Entropy analysis.")
-    parser.add_argument("--output_folder", required=True, help="Path to the output folder.")
-    parser.add_argument("--class_labels", required=True, help="Class labels dictionary (as a string).")
-    parser.add_argument("--frame_rate", required=True, type=int, help="Frame rate.")  # Keep, but not used
-    parser.add_argument("--video_name", required=True, help="Video name.")
-    parser.add_argument("--max_lag", type=int, default=150, help="Maximum lag in frames (default: 150).") #Keep, but not used
-    parser.add_argument("--k_values", type=str, default="1,5,10", help="Comma-separated list of k values (embedding dimensions).")
-    parser.add_argument("--laplace_smoothing", type=float, default=0.1, help="Laplace smoothing parameter (default: 0.1).")
-    parser.add_argument("--transition_threshold", type=int, default=5, help="Minimum number of transitions required for analysis (default: 5)")
 
-    args = parser.parse_args()
+def main_analysis(output_folder, class_labels, video_name, k_values="1,5,10", laplace_smoothing=0.1, transition_threshold=5): # Keyword args
+    """Main function to run Transfer Entropy analysis."""
 
-    csv_output_folder = os.path.join(args.output_folder, "csv_output")
+    csv_output_folder = os.path.join(output_folder, "csv_output") # Corrected: output_folder instead of args.output_folder
     os.makedirs(csv_output_folder, exist_ok=True)
 
-    try:
-        class_labels_dict = ast.literal_eval(args.class_labels)
-        if not isinstance(class_labels_dict, dict):
-            raise ValueError("Class labels must be a dictionary.")
-    except (ValueError, SyntaxError) as e:
-        print(f"Error: Invalid class labels format: {e}")
-        return
+    if not isinstance(class_labels, dict):
+        return "Error: Class labels must be a dictionary." # Error string
 
-    csv_file_path = os.path.join(csv_output_folder, f"{args.video_name}_analysis.csv")
+    csv_file_path = os.path.join(csv_output_folder, f"{video_name}_analysis.csv") # Corrected: video_name instead of args.video_name
     if not os.path.exists(csv_file_path):
-        print(f"Error: {csv_file_path} not found. Run general_analysis.py first.")
-        return
+        return f"Error: {csv_file_path} not found. Run general_analysis.py first." # Error string
 
     # Parse k_values from command line argument
-    k_values = [int(k) for k in args.k_values.split(",")]
+    try:
+        k_values_list = [int(k) for k in k_values.split(",")] # Corrected: k_values instead of args.k_values
+    except ValueError:
+        return "Error: Invalid k values. Must be comma-separated integers." # Error string
 
-    all_te_results = {} # Store all results
+    all_te_results = {} # Store all TE results
+    output_messages = [] # List to collect messages
 
     # ------ Data Analysis (Before TE Calculation) ------
     df = pd.read_csv(csv_file_path)
 
     # --- Behavior Frequencies ---
     behavior_counts = df['Class Label'].value_counts()
-    print("\n--- Behavior Frequencies ---")
-    print(behavior_counts)
+    behavior_freq_output = io.StringIO() # Capture output
+    behavior_freq_output.write("\n--- Behavior Frequencies ---\n")
+    behavior_freq_output.write(behavior_counts.to_string())
+    behavior_freq_str = behavior_freq_output.getvalue()
+    behavior_freq_output.close()
+    print(behavior_freq_str)
+    output_messages.append(behavior_freq_str)
+
 
     # --- Transition Counts ---
     transition_counts = {}
-    for behavior in class_labels_dict.values():
+    transition_warning_messages = [] # To collect warning messages
+    transition_counts_output = io.StringIO() # Capture output
+    transition_counts_output.write("\n--- Transition Counts ---\n")
+
+    for behavior in class_labels.values():
         transitions = 0
         series = pd.Series([1 if label == behavior else 0 for label in df['Class Label']])
         for i in range(1, len(series)):
             if series[i] != series[i-1]:
                 transitions += 1
         transition_counts[behavior] = transitions
+        transition_counts_output.write(f"{behavior}: {transitions} transitions\n")
+        if transitions < transition_threshold:
+            warning_message = f"Warning: {behavior} has very few transitions. TE results may be unreliable."
+            transition_warning_messages.append(warning_message) # Collect warning
+            transition_counts_output.write(warning_message + "\n") # Log warning too
 
-    print("\n--- Transition Counts ---")
-    for behavior, count in transition_counts.items():
-        print(f"{behavior}: {count} transitions")
-        if count < args.transition_threshold:
-            print(f"Warning: {behavior} has very few transitions. TE results may be unreliable.")
+    transition_counts_str = transition_counts_output.getvalue()
+    transition_counts_output.close()
+    print(transition_counts_str)
+    output_messages.append(transition_counts_str)
+    output_messages.extend(transition_warning_messages) # Add warnings to output messages
+
 
     # --- Pairwise Co-occurrence ---
-    # (Implementation depends on what co-occurrence means in your context. Simplest is just count joint occurrences in same frame)
-    cooccurrence_matrix = pd.DataFrame(index=class_labels_dict.values(), columns=class_labels_dict.values())
-    for class1, class2 in itertools.product(class_labels_dict.values(), repeat=2):
-        cooccurrence = len(df[(df['Class Label'] == class1) & (df['Class Label'] == class2)]) #Number of times these appear together. If they can't be in the same frame, find an alternative calculation.
+    cooccurrence_matrix = pd.DataFrame(index=class_labels.values(), columns=class_labels.values())
+    for class1, class2 in itertools.product(class_labels.values(), repeat=2):
+        cooccurrence = len(df[(df['Class Label'] == class1) & (df['Class Label'] == class2)]) #Co-occurrence
         cooccurrence_matrix.loc[class1, class2] = cooccurrence
-    print("\n--- Pairwise Co-occurrence Matrix ---")
-    print(cooccurrence_matrix)
+
+    cooccurrence_output = io.StringIO() # Capture output
+    cooccurrence_output.write("\n--- Pairwise Co-occurrence Matrix ---\n")
+    cooccurrence_output.write(cooccurrence_matrix.to_string())
+    cooccurrence_str = cooccurrence_output.getvalue()
+    cooccurrence_output.close()
+    print(cooccurrence_str)
+    output_messages.append(cooccurrence_str)
     # --------------------------------------------------
 
-    for k in k_values:
-        print(f"Calculating TE for k = {k}")
-        te_results = calculate_transfer_entropy(csv_file_path, class_labels_dict, args.max_lag, k, args.laplace_smoothing)
-        all_te_results[k] = te_results
-        save_te_to_excel(te_results, args.output_folder, args.video_name, k) # Save for each k
+    plot_paths = [] # List to collect plot paths
 
-    # Plotting TE vs k
+    for k in k_values_list:
+        message_calculating_te = f"Calculating TE for k = {k}"
+        print(message_calculating_te)
+        output_messages.append(message_calculating_te)
+
+        error_te, te_results = calculate_transfer_entropy(csv_file_path, class_labels_dict, 150, k, laplace_smoothing) # Corrected: Removed args.max_lag, used 150 directly, and corrected laplace_smoothing to keyword arg
+        if error_te: # If calculate_transfer_entropy returned an error string
+            return error_te # Return error string to GUI
+        all_te_results[k] = te_results
+        excel_output_msg = save_te_to_excel(te_results, output_folder, video_name, k) # Corrected: output_folder, video_name instead of args.output_folder, args.video_name
+        if excel_output_msg:
+            output_messages.append(excel_output_msg) # Add excel message
+
+
     behavior_pairs = list(itertools.combinations(class_labels_dict.values(), 2)) # Unique behavior pairs
 
     for class1, class2 in behavior_pairs: # Iterate through all pairs
         te_values_class1_to_class2 = []
         te_values_class2_to_class1 = []
 
-        for k in k_values: # Collect TE values
+        for k in k_values_list: # Collect TE values
             te_values_class1_to_class2.append(all_te_results[k].get((class1, class2), None))
             te_values_class2_to_class1.append(all_te_results[k].get((class2, class1), None))
 
         # Remove None values for plotting if any error occurred
-        te_values_class1_to_class2 = [te for te in te_values_class1_to_class2 if te is not None]
-        te_values_class2_to_class1 = [te for te in te_values_class2_to_class1 if te is not None]
+        te_values_class1_to_class2_plot = [te for te in te_values_class1_to_class2 if te is not None] #Plotting data
+        te_values_class2_to_class1_plot = [te for te in te_values_class2_to_class1 if te is not None] #Plotting data
+
 
         # Plot Transfer Entropy vs k
         plt.figure(figsize=(10, 6)) # Adjust figure size if needed
-        plt.plot(k_values[:len(te_values_class1_to_class2)], te_values_class1_to_class2, marker='o', linestyle='-', label=f'{class1} -> {class2}') #Plot the data
-        plt.plot(k_values[:len(te_values_class2_to_class1)], te_values_class2_to_class1, marker='o', linestyle='-', label=f'{class2} -> {class1}') #Plot the data
-        plt.xlabel("Embedding Dimension (k)") # Give x axis a label
-        plt.ylabel("Transfer Entropy") #Give y axis a label
-        plt.title(f"Transfer Entropy vs. k for {class1} and {class2}") #Give the plot a title
-        plt.legend() # add a legend so we know which is which
+        plt.plot(k_values_list[:len(te_values_class1_to_class2_plot)], te_values_class1_to_class2_plot, marker='o', linestyle='-', label=f'{class1} -> {class2}') #Plot
+        plt.plot(k_values_list[:len(te_values_class2_to_class1_plot)], te_values_class2_to_class1_plot, marker='o', linestyle='-', label=f'{class2} -> {class1}') #Plot
+        plt.xlabel("Embedding Dimension (k)")
+        plt.ylabel("Transfer Entropy")
+        plt.title(f"Transfer Entropy vs. k for {class1} and {class2}")
+        plt.legend()
 
-        plot_path = os.path.join(args.output_folder, f"TE_vs_k_{class1}_{class2}.png") #Create the plot path
-        plt.savefig(plot_path) # Save the plot to a path
-        plt.close() # close it or you might run out of memory
+        plot_path = os.path.join(output_folder, f"TE_vs_k_{class1}_{class2}.png") # Corrected: output_folder instead of args.output_folder
+        plt.savefig(plot_path) # Save plot
+        plt.close()
+        message_plot_saved = f"Plot of TE vs k saved to {plot_path}"
+        print(message_plot_saved)
+        output_messages.append(message_plot_saved)
+        plot_paths.append(plot_path)
 
-        print(f"Plot of TE vs k saved to {plot_path}") # give the user the save path
+
+    return "\n".join(output_messages) # Return combined messages
 
 if __name__ == "__main__":
-    main()
+    # Example for direct testing:
+    output_folder_path = "path/to/your/output_folder" # Replace with real path
+    class_labels_dict = {0: "Exploration", 1: "Grooming", 2: "Jump", 3: "Wall-Rearing", 4: "Rear"}
+    frame_rate_val = 30
+    video_name_val = "your_video_name" # Replace with real video name
+    k_values_test = "1,3" # Test k values
+
+    class Args: # Dummy Args class for testing (not needed for GUI)
+        def __init__(self, output_folder, class_labels, frame_rate, video_name, max_lag, k_values, laplace_smoothing, transition_threshold):
+            self.output_folder = output_folder
+            self.class_labels = str(class_labels) # Pass as string for direct test
+            self.frame_rate = frame_rate
+            self.video_name = video_name
+            self.max_lag = max_lag # Not used in TE, but kept for consistency
+            self.k_values = k_values
+            self.laplace_smoothing = laplace_smoothing
+            self.transition_threshold = transition_threshold
+
+    test_args = Args(output_folder_path, class_labels_dict, frame_rate_val, video_name_val, 150, k_values_test, 0.1, 5)
+
+    # Simulate command-line execution (original main) - not needed for GUI
+    # main(test_args)
+
+    # Direct call to main_analysis for testing:
+    output_message = main_analysis(output_folder=test_args.output_folder,
+                                  class_labels=class_labels_dict, # Pass dict directly
+                                  video_name=test_args.video_name,
+                                  k_values=test_args.k_values,
+                                  laplace_smoothing=test_args.laplace_smoothing,
+                                  transition_threshold=test_args.transition_threshold)
+    print(output_message) # Print output for direct test
