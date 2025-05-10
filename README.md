@@ -1,3 +1,4 @@
+[![DOI](https://zenodo.org/badge/938786773.svg)](https://doi.org/10.5281/zenodo.15379909)
 <div style="display: flex; align-items: middle; gap: 20px;"> 
   <a href="https://papers.ssrn.com/sol3/papers.cfm?abstract_id=5181897" target="_blank" rel="noopener noreferrer">
     <img 
