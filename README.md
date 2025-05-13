@@ -1,6 +1,6 @@
 [![DOI](https://zenodo.org/badge/938786773.svg)](https://doi.org/10.5281/zenodo.15379909)
 <div style="display: flex; align-items: middle; gap: 20px;"> 
-  <a href="https://papers.ssrn.com/sol3/papers.cfm?abstract_id=5181897" target="_blank" rel="noopener noreferrer">
+  <a href="https://www.sciencedirect.com/science/article/pii/S0306452225003690" target="_blank" rel="noopener noreferrer">
     <img 
 	src="https://github.com/user-attachments/assets/2c247b73-f499-4ce0-9186-02bf151d9da5" 
      	alt="Clickable animation linking to abstract" 
