@@ -11,6 +11,8 @@
 
 👆 *Click for Paper*
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/farhanaugustine/Temporal_Behavior_Analysis)
+
 # Behavioral Analysis Toolkit
 
 This project provides a user-friendly graphical interface (GUI) for analyzing behavioral data extracted from video using YOLOv8 or YOLOv11 object detection. It allows you to process raw YOLOv8 or YOLOv11 output, define "bouts" of behavior, and perform various analyses, including transition probabilities, cross-correlations, FFT analysis, rhythm detection, basic correlations, and total time spent analysis.
